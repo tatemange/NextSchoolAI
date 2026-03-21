@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Mes documents{% endblock %}
+{% block nav_mes_docs %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Mes documents</h1>
+    <p class="page-subtitle">Vos documents uploadés</p>
+  </div>
+  <a href="{% url 'documents:upload' %}" class="btn btn-primary">
+    <i data-lucide="upload-cloud"></i> Uploader
+  </a>
+</div>
+
+{% if page.object_list %}
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    {% for doc in page.object_list %}
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border-color);">
+      <div class="doc-card-icon pdf" style="width:36px;height:36px;flex-shrink:0;">
+        <i data-lucide="file-text" style="width:16px;height:16px;"></i>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <a href="{% url 'documents:detail' doc.pk %}" style="font-size:14px;font-weight:500;color:var(--text-primary);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ doc.titre }}</a>
+        <div style="font-size:11px;color:var(--text-muted);">
+          {% if doc.matiere %}{{ doc.matiere }} · {% endif %}{{ doc.date_upload|date:"d/m/Y" }}
+          · IA :
+          <span style="color:{% if doc.statut_ia == 'valide' %}var(--success){% elif doc.statut_ia == 'rejete' %}var(--danger){% else %}var(--warning){% endif %};">{{ doc.get_statut_ia_display }}</span>
+        </div>
+      </div>
+      <span class="badge {% if doc.statut_doc == 'publie' %}badge-green{% elif doc.statut_doc == 'rejete' %}badge-red{% else %}badge-yellow{% endif %}">
+        {{ doc.get_statut_doc_display }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon"><i data-lucide="folder-open"></i></div>
+  <h3 class="empty-title">Aucun document</h3>
+  <p class="empty-text">Vous n'avez encore uploadé aucun document.</p>
+  <a href="{% url 'documents:upload' %}" class="btn btn-primary">Uploader mon premier document</a>
+</div>
+{% endif %}
+{% endblock %}

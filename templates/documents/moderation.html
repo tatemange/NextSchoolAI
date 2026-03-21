@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Modération{% endblock %}
+{% block nav_moderation %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Modération des documents</h1>
+    <p class="page-subtitle">{{ documents|length }} document{{ documents|length|pluralize }} en attente de validation humaine</p>
+  </div>
+</div>
+
+{% if documents %}
+<div style="display:flex;flex-direction:column;gap:16px;">
+  {% for doc in documents %}
+  <div class="card">
+    <div class="card-body">
+      <div style="display:flex;align-items:flex-start;gap:16px;">
+        <div class="doc-card-icon pdf" style="width:48px;height:48px;flex-shrink:0;">
+          <i data-lucide="file-text" style="width:22px;height:22px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <h3 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">{{ doc.titre }}</h3>
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            {% if doc.matiere %}<span class="badge badge-blue">{{ doc.matiere }}</span>{% endif %}
+            {% if doc.classe %}<span class="badge badge-gray">{{ doc.classe }}</span>{% endif %}
+            <span class="badge badge-green"><i data-lucide="cpu" style="width:10px;height:10px;"></i> Validé IA</span>
+          </div>
+          <p style="font-size:12.5px;color:var(--text-secondary);">
+            Uploadé par <strong>{{ doc.utilisateur.get_full_name|default:doc.utilisateur.username }}</strong> le {{ doc.date_upload|date:"d/m/Y à H:i" }}
+          </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <a href="{{ doc.url_fichier.url }}" target="_blank" class="btn btn-ghost btn-sm">
+            <i data-lucide="eye"></i> Voir
+          </a>
+          <form method="post" action="{% url 'documents:valider' doc.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success btn-sm">
+              <i data-lucide="check"></i> Publier
+            </button>
+          </form>
+          <form method="post" action="{% url 'documents:rejeter' doc.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="commentaire" value="Non conforme aux critères.">
+            <button type="submit" class="btn btn-danger btn-sm">
+              <i data-lucide="x"></i> Rejeter
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon"><i data-lucide="shield-check"></i></div>
+  <h3 class="empty-title" style="color:var(--success);">File vide — Tout est validé !</h3>
+  <p class="empty-text">Aucun document en attente de validation humaine.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Générer un QCM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Générer un QCM</h1>
+    <p class="page-subtitle">{{ document.titre }}</p>
+  </div>
+  <a href="{% url 'documents:detail' document.pk %}" class="btn btn-ghost">
+    <i data-lucide="arrow-left"></i> Retour
+  </a>
+</div>
+
+<div style="max-width:600px;margin:0 auto;">
+  <div class="card">
+    <div class="card-body" style="text-align:center;padding:48px 40px;">
+      <div class="upload-icon" style="margin:0 auto 20px;background:rgba(10,133,255,0.15);">
+        <i data-lucide="brain-circuit" style="color:var(--accent);"></i>
+      </div>
+      <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">Générer un QCM par IA</h2>
+      <p style="font-size:14px;color:var(--text-secondary);margin-bottom:32px;line-height:1.7;">
+        L'IA va analyser le contenu de <strong style="color:var(--text-primary);">{{ document.titre }}</strong>
+        et créer des questions de QCM adaptées au programme scolaire camerounais.
+      </p>
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:24px;">
+          <label class="form-label" style="font-size:14px;">Nombre de questions</label>
+          <div style="display:flex;align-items:center;gap:16px;justify-content:center;margin-top:8px;">
+            {% for nb in "5,10,15,20"|split:"," %}
+            <label style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="nb_questions" value="{{ nb }}"
+                     {% if nb == "10" %}checked{% endif %}
+                     style="accent-color:var(--accent);">
+              <span style="font-size:20px;font-weight:700;color:var(--text-primary);">{{ nb }}</span>
+              <span style="font-size:11px;color:var(--text-muted);">questions</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg" style="width:100%;justify-content:center;">
+          <i data-lucide="wand-2"></i> Générer le QCM maintenant
+        </button>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:12px;">
+          <i data-lucide="clock" style="display:inline;width:11px;height:11px;"></i>
+          La génération prend 5 à 30 secondes selon la taille du document
+        </p>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

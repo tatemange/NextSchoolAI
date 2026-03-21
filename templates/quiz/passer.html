@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Passer le QCM{% endblock %}
+{% block nav_qcm %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">QCM — {{ session.document.titre|default:"Questions" }}</h1>
+    <p class="page-subtitle">{{ session.nb_questions }} question{{ session.nb_questions|pluralize }} · {{ session.score_total }} point{{ session.score_total|pluralize }}</p>
+  </div>
+  <a href="{% url 'documents:detail' session.document.pk %}" class="btn btn-ghost">
+    <i data-lucide="arrow-left"></i> Retour
+  </a>
+</div>
+
+<!-- Barre de progression -->
+<div class="progress-bar">
+  <div class="progress-fill" style="width:0%" id="progress-fill"></div>
+</div>
+
+<form method="post" action="{% url 'quiz:soumettre' session.pk %}" id="qcm-form">
+  {% csrf_token %}
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    {% for question in questions %}
+    <div class="qcm-question-card" id="q-{{ question.pk }}">
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">{{ question.ordre|default:forloop.counter }}</div>
+        <p style="font-size:15px;font-weight:500;color:var(--text-primary);line-height:1.6;">{{ question.enonce }}</p>
+      </div>
+      {% if question.points > 1 %}
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;margin-left:40px;">
+        <i data-lucide="award" style="display:inline;width:11px;height:11px;"></i> {{ question.points }} points
+      </div>
+      {% endif %}
+      <div style="margin-left:40px;">
+        {% for option in question.options.all %}
+        <label class="qcm-option" id="opt-{{ option.pk }}">
+          <input type="radio" name="question_{{ question.pk }}" value="{{ option.pk }}"
+                 onchange="updateProgress()" style="margin-top:2px;accent-color:var(--accent);">
+          <span style="font-size:14px;color:var(--text-primary);">{{ option.libelle_option }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;margin-top:24px;gap:12px;">
+    <button type="button" class="btn btn-ghost" onclick="if(confirm('Êtes-vous sûr de vouloir soumettre ?')) document.getElementById(\'qcm-form\').submit();">
+      Soumettre sans tout répondre
+    </button>
+    <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+      <i data-lucide="check-circle"></i> Valider mes réponses
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const total = {{ questions|length }};
+function updateProgress() {
+  const answered = new Set();
+  document.querySelectorAll('input[type="radio"]:checked').forEach(r => {
+    answered.add(r.name);
+  });
+  const pct = Math.round((answered.size / total) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+</script>
+{% endblock %}

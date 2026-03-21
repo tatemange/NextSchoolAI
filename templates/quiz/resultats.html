@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Résultats QCM{% endblock %}
+{% block nav_qcm %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Résultats du QCM</h1>
+    <p class="page-subtitle">{{ session.date_debut|date:"d/m/Y à H:i" }}</p>
+  </div>
+  <a href="{% url 'quiz:historique' %}" class="btn btn-ghost">
+    <i data-lucide="clock"></i> Historique
+  </a>
+</div>
+
+<!-- Score principal -->
+<div style="text-align:center;padding:32px 0;">
+  <div class="score-circle" style="border-color:{% if session.pourcentage >= 60 %}var(--success){% elif session.pourcentage >= 40 %}var(--warning){% else %}var(--danger){% endif %};box-shadow:0 0 40px {% if session.pourcentage >= 60 %}rgba(63,185,80,0.3){% elif session.pourcentage >= 40 %}rgba(210,153,34,0.3){% else %}rgba(248,81,73,0.3){% endif %};">
+    <div class="score-number">{{ session.pourcentage }}%</div>
+    <div class="score-label">{{ session.score_obtenu }}/{{ session.score_total }} pts</div>
+  </div>
+  <h2 style="font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">{{ session.mention }}</h2>
+  <p style="font-size:14px;color:var(--text-secondary);">
+    {% if session.pourcentage >= 80 %}Excellent travail ! Continuez comme ça. 🎉
+    {% elif session.pourcentage >= 60 %}Bien ! Quelques points à revoir.
+    {% elif session.pourcentage >= 40 %}Des efforts à fournir. Repassez ce cours.
+    {% else %}Résultat insuffisant. Révisez ce document attentivement.{% endif %}
+  </p>
+  <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
+    <a href="{% url 'quiz:correction' session.pk %}" class="btn btn-secondary">
+      <i data-lucide="list-checks"></i> Voir la correction
+    </a>
+    {% if session.document %}
+    <a href="{% url 'quiz:generer' session.document.pk %}" class="btn btn-primary">
+      <i data-lucide="refresh-cw"></i> Nouveau QCM
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Détail des réponses -->
+<div class="card">
+  <div class="card-header"><span class="card-title">Détail des réponses</span></div>
+  <div class="card-body" style="padding:0;">
+    {% for reponse in reponses %}
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border-color);display:flex;gap:12px;align-items:flex-start;">
+      <div style="width:24px;height:24px;border-radius:50%;background:{% if reponse.est_correct %}var(--success-light){% else %}var(--danger-light){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        {% if reponse.est_correct %}
+        <i data-lucide="check" style="width:13px;height:13px;color:var(--success);"></i>
+        {% else %}
+        <i data-lucide="x" style="width:13px;height:13px;color:var(--danger);"></i>
+        {% endif %}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <p style="font-size:13.5px;font-weight:500;color:var(--text-primary);margin-bottom:4px;">{{ reponse.question.enonce }}</p>
+        {% if reponse.option_choisie %}
+        <p style="font-size:12px;color:{% if reponse.est_correct %}var(--success){% else %}var(--danger){% endif %};">
+          Votre réponse : {{ reponse.option_choisie.libelle_option }}
+        </p>
+        {% else %}
+        <p style="font-size:12px;color:var(--text-muted);">Sans réponse</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

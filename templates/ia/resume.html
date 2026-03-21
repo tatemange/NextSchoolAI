@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Résumé IA{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Résumé IA</h1>
+    <p class="page-subtitle">{{ document.titre }}</p>
+  </div>
+  <a href="{% url 'documents:detail' document.pk %}" class="btn btn-ghost">
+    <i data-lucide="arrow-left"></i> Retour au document
+  </a>
+</div>
+
+{% if resume %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">
+      <i data-lucide="sparkles" style="display:inline;width:15px;height:15px;margin-right:6px;color:var(--accent);"></i>
+      Résumé généré par IA
+    </span>
+    <span class="badge badge-blue">
+      <i data-lucide="cpu" style="width:10px;height:10px;"></i> Gemini
+    </span>
+  </div>
+  <div class="card-body">
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.8;white-space:pre-wrap;">{{ resume }}</div>
+  </div>
+  <div class="card-footer">
+    <a href="{% url 'quiz:generer' document.pk %}" class="btn btn-primary">
+      <i data-lucide="clipboard-list"></i> Générer un QCM depuis ce document
+    </a>
+    <form method="post" action="{% url 'ia:resumer' document.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm">
+        <i data-lucide="refresh-cw"></i> Regénérer
+      </button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center;padding:48px;">
+    <div class="upload-icon" style="margin:0 auto 20px;">
+      <i data-lucide="sparkles"></i>
+    </div>
+    <h3 style="font-size:17px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Générer le résumé IA</h3>
+    <p style="font-size:13.5px;color:var(--text-secondary);margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto;">
+      L'IA Gemini va analyser ce document et générer un résumé structuré avec les points clés.
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">
+        <i data-lucide="sparkles"></i> Lancer le résumé IA
+      </button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

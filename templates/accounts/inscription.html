@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Créer un compte{% endblock %}
+
+{% block auth_content %}
+<div class="auth-layout">
+
+  <!-- PANNEAU GAUCHE — BRAND -->
+  <div class="auth-brand">
+    <div class="auth-brand-logo">NS</div>
+    <h1 class="auth-brand-title">
+      Rejoignez<br>NextSchoolAI
+    </h1>
+    <p class="auth-brand-sub">
+      Accédez gratuitement à des milliers de documents éducatifs et laissez l'IA vous aider à réussir vos examens.
+    </p>
+    <div class="auth-features">
+      <div class="auth-feature-item">
+        <i data-lucide="book-open"></i>
+        <span>Épreuves BAC &amp; BTS du Cameroun</span>
+      </div>
+      <div class="auth-feature-item">
+        <i data-lucide="brain-circuit"></i>
+        <span>QCM générés par Google Gemini IA</span>
+      </div>
+      <div class="auth-feature-item">
+        <i data-lucide="trending-up"></i>
+        <span>Suivez votre progression en temps réel</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANNEAU DROIT — FORMULAIRE -->
+  <div class="auth-form-panel">
+    <div class="auth-form-box" style="max-width:440px;">
+      <h2 class="auth-title">Créer un compte</h2>
+      <p class="auth-subtitle">Votre accès gratuit à la bibliothèque éducative</p>
+
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+
+        <!-- Prénom + Nom -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div class="floating-group">
+              <input type="text" id="id_first_name" name="first_name"
+                     class="form-input" placeholder="Prénom"
+                     value="{{ form.first_name.value|default:'' }}" required>
+              <label class="floating-label" for="id_first_name">Prénom *</label>
+            </div>
+            {% for err in form.first_name.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+          </div>
+          <div>
+            <div class="floating-group">
+              <input type="text" id="id_last_name" name="last_name"
+                     class="form-input" placeholder="Nom"
+                     value="{{ form.last_name.value|default:'' }}" required>
+              <label class="floating-label" for="id_last_name">Nom *</label>
+            </div>
+            {% for err in form.last_name.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <!-- Nom d'utilisateur -->
+        <div class="floating-group">
+          <input type="text" id="id_username" name="username"
+                 class="form-input" placeholder="jean_dupont"
+                 value="{{ form.username.value|default:'' }}" required autocomplete="username">
+          <label class="floating-label" for="id_username">Nom d'utilisateur *</label>
+          {% for err in form.username.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+        </div>
+
+        <!-- Email -->
+        <div class="floating-group">
+          <input type="email" id="id_email" name="email"
+                 class="form-input" placeholder="jean@exemple.cm"
+                 value="{{ form.email.value|default:'' }}" required autocomplete="email">
+          <label class="floating-label" for="id_email">Adresse email *</label>
+          {% for err in form.email.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+        </div>
+
+        <!-- Sexe + Rôle (pas de floating label sur select) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+          <div>
+            <div class="floating-group">
+              <select id="id_sexe" name="sexe" class="form-input">
+                <option value=""> </option>
+                <option value="M" {% if form.sexe.value == 'M' %}selected{% endif %}>Masculin</option>
+                <option value="F" {% if form.sexe.value == 'F' %}selected{% endif %}>Féminin</option>
+                <option value="A" {% if form.sexe.value == 'A' %}selected{% endif %}>Autre</option>
+              </select>
+              <label class="floating-label" for="id_sexe">Sexe</label>
+            </div>
+          </div>
+          <div>
+            <div class="floating-group">
+              <select id="id_role" name="role" class="form-input" required>
+                <option value=""> </option>
+                {% for role in form.fields.role.queryset %}
+                <option value="{{ role.pk }}" {% if form.role.value|stringformat:"s" == role.pk|stringformat:"s" %}selected{% endif %}>{{ role.libelle }}</option>
+                {% endfor %}
+              </select>
+              <label class="floating-label" for="id_role">Type de compte *</label>
+            </div>
+            {% for err in form.role.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <!-- Avatar (pas de floating label pour file) -->
+        <div class="form-group">
+          <label class="form-label" for="id_avatar">Photo de profil</label>
+          <input type="file" id="id_avatar" name="avatar" class="form-input" accept="image/*">
+          {% for err in form.avatar.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+        </div>
+
+        <!-- Mot de passe -->
+        <div class="floating-group">
+          <input type="password" id="id_password1" name="password1"
+                 class="form-input" placeholder="Mot de passe" required
+                 autocomplete="new-password">
+          <label class="floating-label" for="id_password1">Mot de passe *</label>
+          {% for err in form.password1.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+        </div>
+
+        <!-- Confirmer mot de passe -->
+        <div class="floating-group">
+          <input type="password" id="id_password2" name="password2"
+                 class="form-input" placeholder="Confirmer" required
+                 autocomplete="new-password">
+          <label class="floating-label" for="id_password2">Confirmer le mot de passe *</label>
+          {% for err in form.password2.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="message error" style="margin-bottom:16px;">
+          <i data-lucide="x-circle"></i>
+          <span>{{ form.non_field_errors|first }}</span>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary btn-full" style="margin-bottom:20px;">
+          <i data-lucide="user-plus"></i>
+          Créer mon compte
+        </button>
+      </form>
+
+      <p style="text-align:center;font-size:13.5px;color:var(--text-secondary);">
+        Déjà un compte ?
+        <a href="{% url 'accounts:connexion' %}" style="color:var(--accent);font-weight:600;">Se connecter</a>
+      </p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

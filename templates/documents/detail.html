@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}{{ document.titre }}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="breadcrumb" style="margin-bottom:20px;">
+  <a href="{% url 'documents:liste' %}">Bibliothèque</a>
+  <i data-lucide="chevron-right" style="width:13px;height:13px;" class="breadcrumb-sep"></i>
+  {% if document.matiere %}<span>{{ document.matiere }}</span>
+  <i data-lucide="chevron-right" style="width:13px;height:13px;" class="breadcrumb-sep"></i>{% endif %}
+  <span style="color:var(--text-primary);">{{ document.titre|truncatechars:40 }}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start;">
+
+  <!-- ===== COLONNE PRINCIPALE ===== -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- En-tête document -->
+    <div class="card">
+      <div class="card-body">
+        <div style="display:flex;align-items:flex-start;gap:16px;">
+          <div class="doc-card-icon pdf" style="width:56px;height:56px;flex-shrink:0;">
+            <i data-lucide="file-text" style="width:26px;height:26px;"></i>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <h1 style="font-size:20px;font-weight:700;color:var(--text-primary);letter-spacing:-0.4px;margin-bottom:8px;">{{ document.titre }}</h1>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+              {% if document.matiere %}<span class="badge badge-blue">{{ document.matiere }}</span>{% endif %}
+              {% if document.classe %}<span class="badge badge-gray">{{ document.classe }}</span>{% endif %}
+              {% if document.annee_academique %}<span class="badge badge-gray">{{ document.annee_academique }}</span>{% endif %}
+              <span class="badge badge-green"><i data-lucide="check-circle" style="width:10px;height:10px;"></i> Publié</span>
+            </div>
+            <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.7;">
+              {{ document.description|default:"Aucune description disponible pour ce document." }}
+            </p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-color);">
+          <a href="{% url 'documents:telecharger' document.pk %}" class="btn btn-primary">
+            <i data-lucide="download"></i> Télécharger le PDF
+          </a>
+          {% if user.is_authenticated %}
+          <a href="{% url 'ia:resumer' document.pk %}" class="btn btn-secondary">
+            <i data-lucide="sparkles"></i> Résumé IA
+          </a>
+          <a href="{% url 'quiz:generer' document.pk %}" class="btn btn-secondary">
+            <i data-lucide="clipboard-list"></i> Générer QCM
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes et évaluations -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">
+          <i data-lucide="star" style="display:inline;width:15px;height:15px;margin-right:6px;color:var(--warning);"></i>
+          Évaluations
+          {% if note_moyenne %}<span style="font-size:14px;color:var(--warning);margin-left:8px;">{{ note_moyenne|floatformat:1 }}/5</span>{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        {% if user.is_authenticated and not evaluation %}
+        <!-- Formulaire évaluation -->
+        <form method="post" action="{% url 'documents:evaluer' document.pk %}">
+          {% csrf_token %}
+          <p style="font-size:13.5px;color:var(--text-secondary);margin-bottom:12px;">Évaluez ce document :</p>
+          <div style="display:flex;gap:12px;align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label">Note (1-5)</label>
+              <input type="number" name="note" min="1" max="5" class="form-input" style="width:80px;" required>
+            </div>
+            <div class="form-group" style="flex:1;margin-bottom:0;">
+              <label class="form-label">Commentaire</label>
+              <input type="text" name="commentaire" class="form-input" placeholder="Votre avis...">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Évaluer</button>
+          </div>
+        </form>
+        {% elif evaluation %}
+        <p style="font-size:13.5px;color:var(--success);">
+          <i data-lucide="check-circle" style="display:inline;width:14px;height:14px;"></i>
+          Vous avez noté ce document : <strong>{{ evaluation.note }}/5</strong>
+          {% if evaluation.commentaire %} — {{ evaluation.commentaire }}{% endif %}
+        </p>
+        {% else %}
+        <p style="font-size:13.5px;color:var(--text-muted);">
+          <a href="{% url 'accounts:connexion' %}?next={{ request.path }}" style="color:var(--accent);">Connectez-vous</a> pour évaluer ce document.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Documents similaires -->
+    {% if docs_similaires %}
+    <div>
+      <h3 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:14px;">Documents similaires</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
+        {% for sim in docs_similaires %}
+        <a href="{% url 'documents:detail' sim.pk %}" class="doc-card" style="padding:14px;">
+          <div class="doc-card-title" style="font-size:13px;">{{ sim.titre|truncatechars:50 }}</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            {% if sim.matiere %}<span class="badge badge-blue">{{ sim.matiere }}</span>{% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /col principale -->
+
+  <!-- ===== SIDEBAR INFO ===== -->
+  <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:76px;">
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Informations</span></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Auteur</div>
+          <div style="font-size:13px;font-weight:500;">{{ document.utilisateur.get_full_name|default:document.utilisateur.username }}</div>
+        </div>
+        {% if document.annee_academique %}
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Année académique</div>
+          <div style="font-size:13px;font-weight:500;">{{ document.annee_academique }}</div>
+        </div>
+        {% endif %}
+        {% if document.classe %}
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Classe</div>
+          <div style="font-size:13px;">{{ document.classe }} — {{ document.classe.niveau }}</div>
+        </div>
+        {% endif %}
+        {% if document.poids_fichier %}
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Taille</div>
+          <div style="font-size:13px;">{{ document.poids_fichier }} Mo</div>
+        </div>
+        {% endif %}
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Uploadé le</div>
+          <div style="font-size:13px;">{{ document.date_upload|date:"d/m/Y à H:i" }}</div>
+        </div>
+        {% if document.licence %}
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Licence</div>
+          <div style="font-size:13px;">
+            {% if document.licence.url_legal %}<a href="{{ document.licence.url_legal }}" target="_blank">{% endif %}
+            {{ document.licence.nom_licence }}
+            {% if document.licence.url_legal %}</a>{% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if user.is_authenticated %}
+    <div class="card">
+      <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+        <a href="{% url 'quiz:generer' document.pk %}" class="btn btn-primary btn-full">
+          <i data-lucide="brain-circuit"></i> Générer un QCM IA
+        </a>
+        <a href="{% url 'ia:resumer' document.pk %}" class="btn btn-secondary btn-full">
+          <i data-lucide="sparkles"></i> Résumé automatique
+        </a>
+        <a href="{% url 'documents:telecharger' document.pk %}" class="btn btn-ghost btn-full">
+          <i data-lucide="download"></i> Télécharger
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /sidebar info -->
+
+</div>
+{% endblock %}

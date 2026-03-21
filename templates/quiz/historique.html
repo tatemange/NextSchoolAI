@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Mon historique QCM{% endblock %}
+{% block nav_qcm %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Mon historique QCM</h1>
+    <p class="page-subtitle">{{ sessions|length }} session{{ sessions|length|pluralize }}</p>
+  </div>
+</div>
+
+{% if sessions %}
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    {% for session in sessions %}
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border-color);">
+      <!-- Score cercle mini -->
+      <div style="width:48px;height:48px;border-radius:50%;border:2px solid {% if session.pourcentage >= 60 %}var(--success){% elif session.pourcentage >= 40 %}var(--warning){% else %}var(--danger){% endif %};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
+        <span style="font-size:12px;font-weight:800;color:var(--text-primary);">{{ session.pourcentage }}%</span>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:500;color:var(--text-primary);">
+          {{ session.document.titre|default:"QCM sans titre"|truncatechars:50 }}
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+          {{ session.date_debut|date:"d/m/Y à H:i" }} ·
+          {{ session.score_obtenu }}/{{ session.score_total }} pts ·
+          <span style="color:{% if session.pourcentage >= 60 %}var(--success){% elif session.pourcentage >= 40 %}var(--warning){% else %}var(--danger){% endif %};">{{ session.mention }}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <a href="{% url 'quiz:resultats' session.pk %}" class="btn btn-ghost btn-sm">
+          <i data-lucide="bar-chart-2"></i> Résultats
+        </a>
+        <a href="{% url 'quiz:correction' session.pk %}" class="btn btn-secondary btn-sm">
+          <i data-lucide="list-checks"></i> Correction
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon"><i data-lucide="clipboard-list"></i></div>
+  <h3 class="empty-title">Aucun QCM effectué</h3>
+  <p class="empty-text">Choisissez un document dans la bibliothèque pour générer votre premier QCM.</p>
+  <a href="{% url 'documents:liste' %}" class="btn btn-primary">Explorer la bibliothèque</a>
+</div>
+{% endif %}
+{% endblock %}

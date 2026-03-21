@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Bonjour, {{ user.first_name|default:user.username }} 👋</h1>
+    <p class="page-subtitle">
+      {% if user.est_apprenant %}Apprenant — continuez votre progression
+      {% elif user.est_enseignant %}Enseignant — gérez vos ressources
+      {% else %}Administrateur — vue d'ensemble de la plateforme{% endif %}
+    </p>
+  </div>
+  {% if user.est_enseignant or user.est_admin %}
+  <a href="{% url 'documents:upload' %}" class="btn btn-primary">
+    <i data-lucide="upload-cloud"></i> Uploader un document
+  </a>
+  {% endif %}
+</div>
+
+<!-- ===== STATS KPI ===== -->
+<div class="stats-grid" style="margin-bottom:28px;">
+  {% if user.est_apprenant %}
+  <div class="stat-card">
+    <div class="stat-label"><i data-lucide="clipboard-list" style="display:inline;width:12px;height:12px;"></i> QCM effectués</div>
+    <div class="stat-value">{{ nb_sessions|default:"0" }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><i data-lucide="eye" style="display:inline;width:12px;height:12px;"></i> Consultations</div>
+    <div class="stat-value">{{ activites_recentes|length|default:"0" }}</div>
+  </div>
+
+  {% elif user.est_enseignant %}
+  <div class="stat-card">
+    <div class="stat-label">Documents publiés</div>
+    <div class="stat-value" style="color:var(--success);">{{ nb_publies|default:"0" }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">En attente</div>
+    <div class="stat-value" style="color:var(--warning);">{{ nb_en_attente|default:"0" }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Rejetés</div>
+    <div class="stat-value" style="color:var(--danger);">{{ nb_rejetes|default:"0" }}</div>
+  </div>
+
+  {% elif user.est_admin %}
+  <div class="stat-card">
+    <div class="stat-label">Utilisateurs</div>
+    <div class="stat-value">{{ nb_utilisateurs|default:"0" }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Documents</div>
+    <div class="stat-value">{{ nb_documents|default:"0" }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label" style="color:var(--warning);">En attente validation</div>
+    <div class="stat-value" style="color:var(--warning);">{{ nb_en_attente_valid|default:"0" }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label" style="color:var(--success);">Publiés</div>
+    <div class="stat-value" style="color:var(--success);">{{ nb_documents_publies|default:"0" }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== CONTENU SELON RÔLE ===== -->
+{% if user.est_apprenant %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <!-- Activités récentes -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i data-lucide="activity" style="display:inline;width:15px;height:15px;margin-right:6px;"></i>Activité récente</span>
+      <a href="{% url 'documents:liste' %}" class="btn btn-ghost btn-sm">Voir tout</a>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if activites_recentes %}
+        {% for activite in activites_recentes %}
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border-color);">
+          <div style="width:32px;height:32px;border-radius:var(--radius-sm);background:var(--accent-light);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0;">
+            {% if activite.type_action == 'telechargement' %}<i data-lucide="download" style="width:14px;height:14px;"></i>
+            {% elif activite.type_action == 'qcm' %}<i data-lucide="clipboard-check" style="width:14px;height:14px;"></i>
+            {% else %}<i data-lucide="eye" style="width:14px;height:14px;"></i>{% endif %}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ activite.document.titre }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">{{ activite.get_type_action_display }} · {{ activite.date_action|timesince }} ago</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon"><i data-lucide="book-open"></i></div>
+          <div class="empty-title">Aucune activité</div>
+          <div class="empty-text">Commencez à consulter des documents pour voir votre historique.</div>
+          <a href="{% url 'documents:liste' %}" class="btn btn-primary btn-sm">Explorer la bibliothèque</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Derniers QCM -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i data-lucide="trophy" style="display:inline;width:15px;height:15px;margin-right:6px;"></i>Derniers QCM</span>
+      <a href="{% url 'quiz:historique' %}" class="btn btn-ghost btn-sm">Historique</a>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if sessions_qcm %}
+        {% for session in sessions_qcm %}
+        <a href="{% url 'quiz:resultats' session.pk %}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border-color);text-decoration:none;transition:var(--transition-fast);" onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background=''">
+          <div class="score-badge" style="width:40px;height:40px;border-radius:50%;border:2px solid {% if session.pourcentage >= 60 %}var(--success){% else %}var(--danger){% endif %};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:11px;font-weight:700;color:{% if session.pourcentage >= 60 %}var(--success){% else %}var(--danger){% endif %};">{{ session.pourcentage }}%</span>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ session.document.titre|default:"QCM" }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">{{ session.score_obtenu }}/{{ session.score_total }} pts · {{ session.mention }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon"><i data-lucide="clipboard-list"></i></div>
+          <div class="empty-title">Aucun QCM effectué</div>
+          <div class="empty-text">Choisissez un document pour générer un QCM IA.</div>
+          <a href="{% url 'documents:liste' %}" class="btn btn-primary btn-sm">Choisir un document</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% elif user.est_enseignant %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Mes documents récents</span>
+    <a href="{% url 'documents:upload' %}" class="btn btn-primary btn-sm">
+      <i data-lucide="plus"></i> Uploader
+    </a>
+  </div>
+  <div class="card-body" style="padding:0;">
+    {% if mes_documents %}
+      {% for doc in mes_documents %}
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border-color);">
+        <div class="doc-card-icon pdf" style="width:36px;height:36px;"><i data-lucide="file-text" style="width:16px;height:16px;"></i></div>
+        <div style="flex:1;min-width:0;">
+          <a href="{% url 'documents:detail' doc.pk %}" style="font-size:14px;font-weight:500;color:var(--text-primary);text-decoration:none;">{{ doc.titre }}</a>
+          <div style="font-size:11px;color:var(--text-muted);">{{ doc.matiere }} · {{ doc.date_upload|date:"d/m/Y" }}</div>
+        </div>
+        <span class="badge {% if doc.statut_doc == 'publie' %}badge-green{% elif doc.statut_doc == 'rejete' %}badge-red{% else %}badge-yellow{% endif %}">
+          {{ doc.get_statut_doc_display }}
+        </span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon"><i data-lucide="upload-cloud"></i></div>
+        <div class="empty-title">Aucun document</div>
+        <a href="{% url 'documents:upload' %}" class="btn btn-primary btn-sm">Uploader maintenant</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% elif user.est_admin %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title"><i data-lucide="shield-check" style="display:inline;width:15px;height:15px;margin-right:6px;"></i>Documents à valider</span>
+    <a href="{% url 'documents:moderation' %}" class="btn btn-primary btn-sm">File de modération</a>
+  </div>
+  <div class="card-body">
+    {% if nb_en_attente_valid == 0 %}
+    <div class="empty-state">
+      <div class="empty-icon"><i data-lucide="check-circle"></i></div>
+      <div class="empty-title" style="color:var(--success);">File vide — tout est à jour !</div>
+    </div>
+    {% else %}
+    <p style="font-size:14px;color:var(--text-secondary);">
+      <strong style="color:var(--warning);">{{ nb_en_attente_valid }}</strong> document(s) validé(s) par l'IA attendent votre validation humaine.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

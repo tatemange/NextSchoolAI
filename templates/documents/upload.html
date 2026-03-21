@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Uploader un document{% endblock %}
+{% block nav_upload %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Uploader un document</h1>
+    <p class="page-subtitle">Ajoutez un cours, une épreuve ou un livre à la bibliothèque</p>
+  </div>
+  <a href="{% url 'documents:liste' %}" class="btn btn-ghost">
+    <i data-lucide="arrow-left"></i> Retour
+  </a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start;">
+
+  <form method="post" enctype="multipart/form-data" id="upload-form">
+    {% csrf_token %}
+
+    <!-- Zone de dépôt -->
+    <div class="upload-zone" id="drop-zone" onclick="document.getElementById('id_url_fichier').click()">
+      <div class="upload-icon"><i data-lucide="upload-cloud"></i></div>
+      <h3 style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Glissez votre fichier ici</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">PDF, JPG, PNG, WEBP — Max 50 Mo</p>
+      <span class="btn btn-secondary btn-sm"><i data-lucide="folder-open"></i> Choisir un fichier</span>
+      <input type="file" id="id_url_fichier" name="url_fichier"
+             accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none;"
+             onchange="updateFileName(this)" required>
+      <div id="file-name" style="font-size:13px;color:var(--accent);margin-top:10px;font-weight:500;"></div>
+    </div>
+    {% for err in form.url_fichier.errors %}
+    <div class="form-error" style="margin-top:8px;"><i data-lucide="alert-circle" style="display:inline;width:12px;height:12px;"></i> {{ err }}</div>
+    {% endfor %}
+
+    <!-- Informations du document -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header"><span class="card-title">Informations du document</span></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:0;">
+
+        <div class="floating-group">
+          <select name="type_document" id="id_type_document" class="form-input" required>
+            <option value="cours">Cours / TD / Résumé</option>
+            <option value="epreuve">Épreuve / Sujet d'examen</option>
+            <option value="livre">Livre / Manuel</option>
+          </select>
+          <label class="floating-label" for="id_type_document">Type de document *</label>
+        </div>
+
+        <div class="floating-group">
+          <input type="text" id="id_titre" name="titre"
+                 class="form-input" placeholder="Titre"
+                 value="{{ form.titre.value|default:'' }}" required>
+          <label class="floating-label" for="id_titre">Titre du document *</label>
+          {% for err in form.titre.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+        </div>
+
+        <div class="floating-group">
+          <textarea id="id_description" name="description" class="form-input" rows="3"
+                    placeholder="Description">{{ form.description.value|default:'' }}</textarea>
+          <label class="floating-label" for="id_description">Description</label>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div class="floating-group">
+              <select id="id_classe" name="classe" class="form-input">
+                <option value=""> </option>
+                {% for c in form.fields.classe.queryset %}
+                <option value="{{ c.pk }}" {% if form.classe.value|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+              </select>
+              <label class="floating-label" for="id_classe">Classe</label>
+            </div>
+          </div>
+          <div>
+            <div class="floating-group">
+              <select id="id_matiere" name="matiere" class="form-input">
+                <option value=""> </option>
+                {% for m in form.fields.matiere.queryset %}
+                <option value="{{ m.pk }}" {% if form.matiere.value|stringformat:"s" == m.pk|stringformat:"s" %}selected{% endif %}>{{ m.nom_matiere }}</option>
+                {% endfor %}
+              </select>
+              <label class="floating-label" for="id_matiere">Matière</label>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="floating-group">
+            <input type="text" id="id_annee_academique" name="annee_academique"
+                   class="form-input" placeholder="Année"
+                   value="{{ form.annee_academique.value|default:'' }}">
+            <label class="floating-label" for="id_annee_academique">Année académique</label>
+          </div>
+          <div>
+            <div class="floating-group">
+              <select id="id_licence" name="licence" class="form-input">
+                <option value=""> </option>
+                {% for l in form.fields.licence.queryset %}
+                <option value="{{ l.pk }}" {% if form.licence.value|stringformat:"s" == l.pk|stringformat:"s" %}selected{% endif %}>{{ l.nom_licence }}</option>
+                {% endfor %}
+              </select>
+              <label class="floating-label" for="id_licence">Licence</label>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full" style="margin-top:8px;">
+          <i data-lucide="upload-cloud"></i> Uploader le document
+        </button>
+
+      </div>
+    </div>
+  </form>
+
+  <!-- Colonne info -->
+  <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:76px;">
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i data-lucide="info" style="display:inline;width:14px;height:14px;margin-right:6px;"></i>Pipeline de validation</span></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+        {% for step in "123"|make_list %}
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">{{ step }}</div>
+          <div style="font-size:13px;color:var(--text-secondary);">
+            {% if step == "1" %}<strong style="color:var(--text-primary);">Upload</strong> — Votre fichier est reçu et enregistré.
+            {% elif step == "2" %}<strong style="color:var(--text-primary);">Analyse IA</strong> — Gemini analyse et valide le contenu pédagogique.
+            {% else %}<strong style="color:var(--text-primary);">Validation humaine</strong> — Un admin vérifie et publie le document.{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <p style="font-size:12.5px;color:var(--text-secondary);line-height:1.6;">
+          <i data-lucide="shield-check" style="display:inline;width:13px;height:13px;color:var(--success);"></i>
+          Les documents doivent respecter les droits d'auteur et les programmes scolaires officiels du Cameroun.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateFileName(input) {
+  const nameDiv = document.getElementById('file-name');
+  if (input.files && input.files[0]) {
+    const f = input.files[0];
+    const sizeMo = (f.size / 1024 / 1024).toFixed(2);
+    nameDiv.textContent = `✓ ${f.name} (${sizeMo} Mo)`;
+    document.getElementById('drop-zone').style.borderColor = 'var(--accent)';
+    document.getElementById('drop-zone').style.background = 'var(--accent-light)';
+  }
+}
+
+// Drag & drop
+const zone = document.getElementById('drop-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('active'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('active'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('active');
+  const input = document.getElementById('id_url_fichier');
+  input.files = e.dataTransfer.files;
+  updateFileName(input);
+});
+</script>
+{% endblock %}

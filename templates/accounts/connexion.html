@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Connexion{% endblock %}
+
+{% block auth_content %}
+<div class="auth-layout">
+
+  <!-- PANNEAU GAUCHE — BRAND -->
+  <div class="auth-brand">
+    <div class="auth-brand-logo">NS</div>
+    <h1 class="auth-brand-title">
+      Bienvenue sur<br>NextSchoolAI
+    </h1>
+    <p class="auth-brand-sub">
+      La plateforme éducative camerounaise qui centralise tous vos documents scolaires et génère des QCM intelligents grâce à l'IA.
+    </p>
+    <div class="auth-features">
+      <div class="auth-feature-item">
+        <i data-lucide="check-circle-2"></i>
+        <span>Documents éducatifs (Cours, Épreuves, Livres)</span>
+      </div>
+      <div class="auth-feature-item">
+        <i data-lucide="check-circle-2"></i>
+        <span>Génération de QCM automatique par IA Gemini</span>
+      </div>
+      <div class="auth-feature-item">
+        <i data-lucide="check-circle-2"></i>
+        <span>Résumés intelligents et assistance pédagogique</span>
+      </div>
+      <div class="auth-feature-item">
+        <i data-lucide="check-circle-2"></i>
+        <span>Suivi de progression et historique des scores</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANNEAU DROIT — FORMULAIRE -->
+  <div class="auth-form-panel">
+    <div class="auth-form-box">
+      <h2 class="auth-title">Connexion</h2>
+      <p class="auth-subtitle">Connectez-vous à votre compte NextSchoolAI</p>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        <!-- Identifiant — Floating Label -->
+        <div class="floating-group">
+          <input type="text"
+                 id="id_identifiant"
+                 name="identifiant"
+                 class="form-input {% if form.identifiant.errors %}error{% endif %}"
+                 placeholder="Identifiant"
+                 value="{{ form.identifiant.value|default:'' }}"
+                 autofocus autocomplete="username">
+          <label class="floating-label" for="id_identifiant">Nom d'utilisateur ou email</label>
+          {% for err in form.identifiant.errors %}
+          <div class="form-error">
+            <i data-lucide="alert-circle" style="width:12px;height:12px;flex-shrink:0;"></i> {{ err }}
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Mot de passe — Floating Label + toggle -->
+        <div class="floating-group">
+          <div class="input-wrapper">
+            <input type="password"
+                   id="id_password"
+                   name="password"
+                   class="form-input {% if form.password.errors %}error{% endif %}"
+                   placeholder="Mot de passe"
+                   autocomplete="current-password"
+                   style="padding-right: 46px;">
+            <label class="floating-label" for="id_password">Mot de passe</label>
+            <button type="button" class="toggle-password" onclick="togglePassword()" aria-label="Afficher/masquer">
+              <i data-lucide="eye" id="eye-icon" style="width:16px;height:16px;"></i>
+            </button>
+          </div>
+          {% for err in form.password.errors %}
+          <div class="form-error">
+            <i data-lucide="alert-circle" style="width:12px;height:12px;flex-shrink:0;"></i> {{ err }}
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:var(--text-sm);color:var(--text-2);cursor:pointer;">
+            <input type="checkbox" name="se_souvenir" class="form-checkbox">
+            Rester connecté
+          </label>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="message error" style="margin-bottom:16px;">
+          <i data-lucide="x-circle" style="width:16px;height:16px;flex-shrink:0;"></i>
+          <span>{{ form.non_field_errors|first }}</span>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary btn-full btn-lg" style="margin-bottom:20px;">
+          <i data-lucide="log-in"></i>
+          Se connecter
+        </button>
+      </form>
+
+      <p style="text-align:center;font-size:var(--text-sm);color:var(--text-3);">
+        Pas encore de compte ?
+        <a href="{% url 'accounts:inscription' %}" style="color:var(--color-caramel);font-weight:var(--weight-semibold);">Créer un compte</a>
+      </p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePassword() {
+  const input = document.getElementById('id_password');
+  const icon  = document.getElementById('eye-icon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.setAttribute('data-lucide', 'eye-off');
+  } else {
+    input.type = 'password';
+    icon.setAttribute('data-lucide', 'eye');
+  }
+  lucide.createIcons();
+}
+</script>
+{% endblock %}

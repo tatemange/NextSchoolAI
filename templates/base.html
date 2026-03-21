@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="{% if user.is_authenticated %}{{ user.theme|default:'brownie' }}{% else %}brownie{% endif %}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}NextSchoolAI{% endblock %} — NextSchoolAI</title>
+  <meta name="description" content="{% block meta_description %}Plateforme éducative camerounaise : documents, QCM IA, résumés automatiques.{% endblock %}">
+
+  <!-- Google Fonts : Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <!-- CSS Principal -->
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/nextschoolai.css' %}">
+
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if user.is_authenticated %}
+<!-- ==========================================
+     LAYOUT AVEC SIDEBAR (utilisateur connecté)
+     ========================================== -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <!-- Brand -->
+    <div class="sidebar-brand">
+      <div class="brand-logo">NS</div>
+      <span class="brand-name">NextSchoolAI</span>
+      <span class="brand-badge">v1</span>
+    </div>
+
+    <!-- Navigation principale -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Navigation</div>
+      <nav class="sidebar-nav">
+        <a href="{% url 'documents:liste' %}" class="nav-item {% block nav_bibliotheque %}{% endblock %}">
+          <i data-lucide="library"></i>
+          Bibliothèque
+        </a>
+        <a href="{% url 'quiz:historique' %}" class="nav-item {% block nav_qcm %}{% endblock %}">
+          <i data-lucide="clipboard-list"></i>
+          Mes QCM
+        </a>
+        <a href="{% url 'accounts:tableau_de_bord' %}" class="nav-item {% block nav_dashboard %}{% endblock %}">
+          <i data-lucide="layout-dashboard"></i>
+          Tableau de bord
+        </a>
+      </nav>
+    </div>
+
+    {% if user.est_enseignant or user.est_admin %}
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Gestion</div>
+      <nav class="sidebar-nav">
+        <a href="{% url 'documents:upload' %}" class="nav-item {% block nav_upload %}{% endblock %}">
+          <i data-lucide="upload-cloud"></i>
+          Uploader
+        </a>
+        <a href="{% url 'documents:mes_documents' %}" class="nav-item {% block nav_mes_docs %}{% endblock %}">
+          <i data-lucide="folder-open"></i>
+          Mes documents
+        </a>
+        {% if user.est_admin %}
+        <a href="{% url 'documents:moderation' %}" class="nav-item {% block nav_moderation %}{% endblock %}">
+          <i data-lucide="shield-check"></i>
+          Modération
+          <!-- Badge nombre docs en attente -->
+        </a>
+        <a href="/admin/" class="nav-item">
+          <i data-lucide="settings"></i>
+          Administration
+        </a>
+        {% endif %}
+      </nav>
+    </div>
+    {% endif %}
+
+    <!-- Footer sidebar -->
+    <div class="sidebar-footer">
+      <a href="{% url 'accounts:profil' %}" class="nav-item">
+        <i data-lucide="user-circle"></i>
+        {{ user.get_full_name|default:user.username }}
+      </a>
+      <a href="{% url 'accounts:deconnexion' %}" class="nav-item" style="color: var(--danger);">
+        <i data-lucide="log-out"></i>
+        Déconnexion
+      </a>
+    </div>
+  </aside>
+
+  <!-- ZONE PRINCIPALE -->
+  <div class="main-content">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-search">
+        <i data-lucide="search"></i>
+        <input type="text" placeholder="Rechercher un document, matière, épreuve...">
+      </div>
+      <div class="topbar-actions">
+        <button class="topbar-btn" title="Notifications">
+          <i data-lucide="bell"></i>
+        </button>
+        <a href="{% url 'accounts:profil' %}">
+          <div class="avatar" title="{{ user.username }}">
+            {% if user.avatar %}
+              <img src="{{ user.avatar.url }}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+            {% else %}
+              {{ user.first_name|first|default:user.username|first|upper }}
+            {% endif %}
+          </div>
+        </a>
+      </div>
+    </header>
+
+    <!-- MESSAGES DJANGO -->
+    {% if messages %}
+    <div class="messages-container">
+      {% for message in messages %}
+      <div class="message {{ message.tags }}" onclick="this.remove()">
+        {% if message.tags == 'success' %}<i data-lucide="check-circle"></i>
+        {% elif message.tags == 'error' %}<i data-lucide="x-circle"></i>
+        {% elif message.tags == 'warning' %}<i data-lucide="alert-triangle"></i>
+        {% else %}<i data-lucide="info"></i>{% endif %}
+        <span>{{ message }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- CONTENU DE LA PAGE -->
+    <main class="page-content">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+{% else %}
+<!-- ==========================================
+     LAYOUT SANS SIDEBAR (auth pages)
+     ========================================== -->
+{% if messages %}
+<div class="messages-container">
+  {% for message in messages %}
+  <div class="message {{ message.tags }}" onclick="this.remove()">
+    <span>{{ message }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% block auth_content %}{% endblock %}
+{% endif %}
+
+<!-- Lucide Icons init -->
+<script>lucide.createIcons();</script>
+
+<!-- Auto-fermeture des messages après 5s -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.message').forEach(function (msg) {
+    setTimeout(function () {
+      msg.style.opacity = '0';
+      msg.style.transform = 'translateX(100%)';
+      msg.style.transition = 'all 0.4s ease';
+      setTimeout(function () { msg.remove(); }, 400);
+    }, 5000);
+  });
+});
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

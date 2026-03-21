@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Bibliothèque{% endblock %}
+{% block nav_bibliotheque %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Bibliothèque de documents</h1>
+    <p class="page-subtitle">{{ nb_resultats }} document{{ nb_resultats|pluralize }} disponible{{ nb_resultats|pluralize }}</p>
+  </div>
+  {% if user.est_enseignant or user.est_admin %}
+  <a href="{% url 'documents:upload' %}" class="btn btn-primary">
+    <i data-lucide="upload-cloud"></i> Uploader
+  </a>
+  {% endif %}
+</div>
+
+<!-- ===== FILTRES ===== -->
+<form method="get" class="filters-bar" id="filters-form">
+  <div style="display:flex;align-items:center;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:0 12px;gap:8px;flex:1;min-width:200px;">
+    <i data-lucide="search" style="width:14px;height:14px;color:var(--text-muted);flex-shrink:0;"></i>
+    <input type="text" name="q" value="{{ form.q.value|default:'' }}"
+           placeholder="Rechercher..." class="form-input" style="border:none;background:none;padding:8px 0;box-shadow:none;">
+  </div>
+
+  <select name="matiere" class="form-input" style="min-width:140px;max-width:180px;" onchange="this.form.submit()">
+    <option value="">Toutes les matières</option>
+    {% for m in form.fields.matiere.queryset %}
+    <option value="{{ m.pk }}" {% if form.matiere.value|stringformat:"s" == m.pk|stringformat:"s" %}selected{% endif %}>{{ m.nom_matiere }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="niveau" class="form-input" style="min-width:130px;max-width:160px;" onchange="this.form.submit()">
+    <option value="">Tous les niveaux</option>
+    {% for n in form.fields.niveau.queryset %}
+    <option value="{{ n.pk }}" {% if form.niveau.value|stringformat:"s" == n.pk|stringformat:"s" %}selected{% endif %}>{{ n.libelle_niveau }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="type_doc" class="form-input" style="min-width:120px;" onchange="this.form.submit()">
+    <option value="">Tous types</option>
+    <option value="cours"   {% if form.type_doc.value == 'cours' %}selected{% endif %}>Cours</option>
+    <option value="epreuve" {% if form.type_doc.value == 'epreuve' %}selected{% endif %}>Épreuves</option>
+    <option value="livre"   {% if form.type_doc.value == 'livre' %}selected{% endif %}>Livres</option>
+  </select>
+
+  <button type="submit" class="btn btn-secondary">
+    <i data-lucide="filter"></i> Filtrer
+  </button>
+
+  {% if form.q.value or form.matiere.value or form.niveau.value or form.type_doc.value %}
+  <a href="{% url 'documents:liste' %}" class="btn btn-ghost">
+    <i data-lucide="x"></i> Réinitialiser
+  </a>
+  {% endif %}
+</form>
+
+<!-- ===== GRILLE DOCUMENTS ===== -->
+{% if page.object_list %}
+<div class="docs-grid">
+  {% for document in page.object_list %}
+  <a href="{% url 'documents:detail' document.pk %}" class="doc-card">
+    <!-- Icône type -->
+    <div style="display:flex;align-items:flex-start;gap:12px;">
+      <div class="doc-card-icon {% if document.epreuve %}pdf{% elif document.livre %}book{% else %}img{% endif %}">
+        {% if document.epreuve %}<i data-lucide="file-text" style="width:20px;height:20px;"></i>
+        {% elif document.livre %}<i data-lucide="book" style="width:20px;height:20px;"></i>
+        {% else %}<i data-lucide="file-type" style="width:20px;height:20px;"></i>{% endif %}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="doc-card-title truncate">{{ document.titre }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{ document.utilisateur.get_full_name|default:document.utilisateur.username }}</div>
+      </div>
+    </div>
+
+    <!-- Description -->
+    {% if document.description %}
+    <p style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+      {{ document.description }}
+    </p>
+    {% endif %}
+
+    <!-- Métadonnées -->
+    <div class="doc-card-meta">
+      {% if document.matiere %}
+      <span class="badge badge-blue">{{ document.matiere }}</span>
+      {% endif %}
+      {% if document.classe %}
+      <span class="badge badge-gray">{{ document.classe }}</span>
+      {% endif %}
+      {% if document.annee_academique %}
+      <span class="badge badge-gray">{{ document.annee_academique }}</span>
+      {% endif %}
+    </div>
+
+    <!-- Footer -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;border-top:1px solid var(--border-color);">
+      <span style="font-size:11px;color:var(--text-muted);">
+        <i data-lucide="calendar" style="display:inline;width:11px;height:11px;"></i>
+        {{ document.date_upload|date:"d/m/Y" }}
+      </span>
+      <div style="display:flex;gap:6px;">
+        <span style="font-size:11px;color:var(--text-muted);" title="Télécharger">
+          <i data-lucide="download" style="display:inline;width:13px;height:13px;"></i>
+        </span>
+        <span style="font-size:11px;color:var(--accent);" title="Générer QCM">
+          <i data-lucide="brain-circuit" style="display:inline;width:13px;height:13px;"></i>
+        </span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- ===== PAGINATION ===== -->
+{% if page.has_other_pages %}
+<div class="pagination">
+  {% if page.has_previous %}
+  <a href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page.previous_page_number }}" class="page-link">
+    <i data-lucide="chevron-left" style="width:14px;height:14px;"></i>
+  </a>
+  {% endif %}
+
+  {% for num in page.paginator.page_range %}
+    {% if page.number == num %}
+      <span class="page-link active">{{ num }}</span>
+    {% elif num > page.number|add:'-3' and num < page.number|add:'3' %}
+      <a href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ num }}" class="page-link">{{ num }}</a>
+    {% endif %}
+  {% endfor %}
+
+  {% if page.has_next %}
+  <a href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}page={{ page.next_page_number }}" class="page-link">
+    <i data-lucide="chevron-right" style="width:14px;height:14px;"></i>
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon"><i data-lucide="search-x"></i></div>
+  <h3 class="empty-title">Aucun document trouvé</h3>
+  <p class="empty-text">Essayez de modifier vos filtres ou effectuez une nouvelle recherche.</p>
+  <a href="{% url 'documents:liste' %}" class="btn btn-primary">Voir tous les documents</a>
+</div>
+{% endif %}
+
+{% endblock %}

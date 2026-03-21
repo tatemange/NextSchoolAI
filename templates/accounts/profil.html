@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Mon profil{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">Mon profil</h1>
+    <p class="page-subtitle">Gérez vos informations personnelles et préférences</p>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:start;">
+
+  <!-- ── Colonne gauche : Avatar ───────────────────── -->
+  <div class="card" style="text-align:center;">
+    <div class="card-body">
+      <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--color-caramel),var(--color-coffee));display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:var(--color-brownie);margin:0 auto 16px;overflow:hidden;border:3px solid var(--border-active);box-shadow:var(--shadow-accent);">
+        {% if user.avatar %}
+          <img src="{{ user.avatar.url }}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;">
+        {% else %}
+          {{ user.first_name|first|default:user.username|first|upper }}
+        {% endif %}
+      </div>
+      <div style="font-size:15px;font-weight:600;color:var(--text-1);">{{ user.get_full_name|default:user.username }}</div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px;">{{ user.role }}</div>
+      <div style="margin-top:12px;">
+        {% if user.is_active %}<span class="badge badge-green">Actif</span>
+        {% else %}<span class="badge badge-red">Inactif</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Colonne droite ────────────────────────────── -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Formulaire profil -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Modifier mes informations</span></div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="floating-group">
+              <input type="text" name="first_name" id="id_first_name" class="form-input"
+                     value="{{ form.first_name.value|default:'' }}" placeholder="Prénom">
+              <label class="floating-label" for="id_first_name">Prénom</label>
+            </div>
+            <div class="floating-group">
+              <input type="text" name="last_name" id="id_last_name" class="form-input"
+                     value="{{ form.last_name.value|default:'' }}" placeholder="Nom">
+              <label class="floating-label" for="id_last_name">Nom</label>
+            </div>
+          </div>
+          <div class="floating-group">
+            <input type="email" name="email" id="id_email" class="form-input"
+                   value="{{ form.email.value|default:'' }}" placeholder="Email">
+            <label class="floating-label" for="id_email">Adresse email</label>
+            {% for err in form.email.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Photo de profil</label>
+              <input type="file" name="avatar" class="form-input" accept="image/*">
+              {% for err in form.avatar.errors %}<div class="form-error">{{ err }}</div>{% endfor %}
+            </div>
+            <div class="floating-group">
+              <select name="sexe" id="id_sexe" class="form-input">
+                <option value=""> </option>
+                <option value="M" {% if form.sexe.value == 'M' %}selected{% endif %}>Masculin</option>
+                <option value="F" {% if form.sexe.value == 'F' %}selected{% endif %}>Féminin</option>
+                <option value="A" {% if form.sexe.value == 'A' %}selected{% endif %}>Autre</option>
+              </select>
+              <label class="floating-label" for="id_sexe">Sexe</label>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="save"></i> Sauvegarder les modifications
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Sélecteur de thème ─────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">
+          <i data-lucide="palette" style="display:inline;width:16px;height:16px;vertical-align:-2px;margin-right:6px;"></i>
+          Thème visuel
+        </span>
+        <span style="font-size:12px;color:var(--text-3);">S'applique instantanément</span>
+      </div>
+      <div class="card-body">
+        <div class="theme-grid" id="theme-grid">
+
+          <!-- Brownie -->
+          <button class="theme-swatch {% if user.theme == 'brownie' or not user.theme %}active{% endif %}"
+                  data-theme-id="brownie" aria-label="Thème Brownie" title="Brownie">
+            <div class="theme-dots">
+              <span style="background:#1a0f0a;"></span>
+              <span style="background:#895737;"></span>
+              <span style="background:#F8E9C0;"></span>
+            </div>
+            <div class="theme-name">Brownie</div>
+            {% if user.theme == 'brownie' or not user.theme %}
+            <div class="theme-check"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            {% endif %}
+          </button>
+
+          <!-- Midnight -->
+          <button class="theme-swatch {% if user.theme == 'midnight' %}active{% endif %}"
+                  data-theme-id="midnight" aria-label="Thème Midnight" title="Midnight">
+            <div class="theme-dots">
+              <span style="background:#05050a;"></span>
+              <span style="background:#6366f1;"></span>
+              <span style="background:#e8e8f0;"></span>
+            </div>
+            <div class="theme-name">Midnight</div>
+            {% if user.theme == 'midnight' %}
+            <div class="theme-check"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            {% endif %}
+          </button>
+
+          <!-- Arctic -->
+          <button class="theme-swatch {% if user.theme == 'arctic' %}active{% endif %}"
+                  data-theme-id="arctic" aria-label="Thème Arctic" title="Arctic">
+            <div class="theme-dots">
+              <span style="background:#ffffff;border:1px solid #e0e0e0;"></span>
+              <span style="background:#0071e3;"></span>
+              <span style="background:#1d1d1f;"></span>
+            </div>
+            <div class="theme-name">Arctic</div>
+            {% if user.theme == 'arctic' %}
+            <div class="theme-check"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            {% endif %}
+          </button>
+
+          <!-- Forest -->
+          <button class="theme-swatch {% if user.theme == 'forest' %}active{% endif %}"
+                  data-theme-id="forest" aria-label="Thème Forest" title="Forest">
+            <div class="theme-dots">
+              <span style="background:#061a0f;"></span>
+              <span style="background:#059669;"></span>
+              <span style="background:#d1fae5;"></span>
+            </div>
+            <div class="theme-name">Forest</div>
+            {% if user.theme == 'forest' %}
+            <div class="theme-check"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            {% endif %}
+          </button>
+
+          <!-- Ocean -->
+          <button class="theme-swatch {% if user.theme == 'ocean' %}active{% endif %}"
+                  data-theme-id="ocean" aria-label="Thème Ocean" title="Ocean">
+            <div class="theme-dots">
+              <span style="background:#011525;"></span>
+              <span style="background:#0ea5e9;"></span>
+              <span style="background:#e0f2fe;"></span>
+            </div>
+            <div class="theme-name">Ocean</div>
+            {% if user.theme == 'ocean' %}
+            <div class="theme-check"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            {% endif %}
+          </button>
+
+          <!-- Rose -->
+          <button class="theme-swatch {% if user.theme == 'rose' %}active{% endif %}"
+                  data-theme-id="rose" aria-label="Thème Rose" title="Rose">
+            <div class="theme-dots">
+              <span style="background:#1e0010;"></span>
+              <span style="background:#ec4899;"></span>
+              <span style="background:#fce7f3;"></span>
+            </div>
+            <div class="theme-name">Rose</div>
+            {% if user.theme == 'rose' %}
+            <div class="theme-check"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            {% endif %}
+          </button>
+
+        </div>
+
+        <p style="font-size:11px;color:var(--text-3);margin-top:14px;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="info" style="width:12px;height:12px;flex-shrink:0;"></i>
+          Le thème est sauvegardé sur votre compte et appliqué sur tous vos appareils.
+        </p>
+      </div>
+    </div>
+
+  </div><!-- /colonne droite -->
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Theme grid ─── */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.theme-swatch {
+  background: var(--bg-surface-hover);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px 10px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  font-family: var(--font-sans);
+}
+.theme-swatch:hover {
+  border-color: var(--border-active);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.theme-swatch.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-light), var(--shadow-sm);
+}
+
+.theme-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.theme-dots span {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+
+.theme-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.theme-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+/* Saving indicator */
+.theme-saving {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+  animation: pulse 1s infinite;
+}
+.theme-saving.visible { display: flex; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  const SET_THEME_URL = '{% url "accounts:set_theme" %}';
+
+  function setTheme(themeId) {
+    // Application instantanée
+    document.documentElement.setAttribute('data-theme', themeId);
+
+    // Mise à jour visuelle des swatches
+    document.querySelectorAll('.theme-swatch').forEach(function(btn) {
+      const active = btn.dataset.themeId === themeId;
+      btn.classList.toggle('active', active);
+
+      // Ajouter/retirer la coche
+      let check = btn.querySelector('.theme-check');
+      if (active) {
+        if (!check) {
+          check = document.createElement('div');
+          check.className = 'theme-check';
+          check.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          btn.appendChild(check);
+        }
+      } else {
+        if (check) check.remove();
+      }
+    });
+
+    // Sauvegarde via AJAX
+    fetch(SET_THEME_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': CSRF_TOKEN,
+      },
+      body: 'theme=' + encodeURIComponent(themeId),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) console.error('Erreur thème :', data.error);
+    })
+    .catch(function(e) { console.error('Erreur réseau :', e); });
+  }
+
+  // Attacher les écouteurs une fois le DOM prêt
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.theme-swatch').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        setTheme(btn.dataset.themeId);
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}
