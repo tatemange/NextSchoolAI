@@ -176,6 +176,20 @@
             {% endif %}
           </button>
 
+          <!-- Noir -->
+          <button class="theme-swatch {% if user.theme == 'noir' %}active{% endif %}"
+                  data-theme-id="noir" aria-label="Thème Noir" title="Noir">
+            <div class="theme-dots">
+              <span style="background:#000000; border:1px solid #333;"></span>
+              <span style="background:#ffffff;"></span>
+              <span style="background:#111111; border:1px solid #333;"></span>
+            </div>
+            <div class="theme-name">Noir</div>
+            {% if user.theme == 'noir' %}
+            <div class="theme-check"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            {% endif %}
+          </button>
+
         </div>
 
         <p style="font-size:11px;color:var(--text-3);margin-top:14px;display:flex;align-items:center;gap:6px;">

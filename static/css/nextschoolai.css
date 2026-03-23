@@ -769,6 +769,34 @@ select.form-input option {
 .form-input::placeholder { color: var(--text-3); }
 .form-input.error { border-color: var(--err); }
 
+/* Premium File Input styles */
+input[type="file"].form-input {
+  padding: 8px 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  line-height: normal;
+}
+
+input[type="file"].form-input::file-selector-button {
+  background: var(--bg-surface-hover);
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  margin-right: 14px;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+input[type="file"].form-input::file-selector-button:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-active);
+  box-shadow: var(--shadow-sm);
+}
+
 /* File input */
 .form-file {
   width: 100%;
@@ -1487,4 +1515,37 @@ select.form-input option {
   --text-1:            #fce7f3;
   --text-2:            #f9a8d4;
   --text-3:            #8a3055;
+}
+
+/* ── Noir — contraste élevé absolu (pur noir et blanc) ── */
+[data-theme="noir"] {
+  --color-cream:       #ffffff;
+  --color-caramel:     #e0e0e0;
+  --color-brownie:     #050505;
+  --color-coffee:      #ffffff;
+  --color-coffee-dark: #cccccc;
+
+  --accent:            #ffffff;
+  --accent-hover:      #e0e0e0;
+  --accent-light:      rgba(255, 255, 255, 0.15);
+  --accent-glow:       rgba(255, 255, 255, 0.35);
+  --accent-text:       #ffffff;
+
+  --bg-base:           #000000;
+  --bg-primary:        #000000;
+  --bg-secondary:      #080808;
+  --bg-surface:        #111111;
+  --bg-surface-hover:  #1a1a1a;
+  --bg-input:          #0a0a0a;
+  --bg-sidebar:        #000000;
+  --bg-topbar:         rgba(0, 0, 0, 0.90);
+
+  --border:            rgba(255, 255, 255, 0.15);
+  --border-hover:      rgba(255, 255, 255, 0.25);
+  --border-active:     rgba(255, 255, 255, 0.60);
+  --border-focus:      #ffffff;
+
+  --text-1:            #ffffff;
+  --text-2:            #cccccc;
+  --text-3:            #888888;
 }

@@ -29,15 +29,26 @@
         <div class="form-group" style="margin-bottom:24px;">
           <label class="form-label" style="font-size:14px;">Nombre de questions</label>
           <div style="display:flex;align-items:center;gap:16px;justify-content:center;margin-top:8px;">
-            {% for nb in "5,10,15,20"|split:"," %}
             <label style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
-              <input type="radio" name="nb_questions" value="{{ nb }}"
-                     {% if nb == "10" %}checked{% endif %}
-                     style="accent-color:var(--accent);">
-              <span style="font-size:20px;font-weight:700;color:var(--text-primary);">{{ nb }}</span>
+              <input type="radio" name="nb_questions" value="5" style="accent-color:var(--accent);">
+              <span style="font-size:20px;font-weight:700;color:var(--text-primary);">5</span>
               <span style="font-size:11px;color:var(--text-muted);">questions</span>
             </label>
-            {% endfor %}
+            <label style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="nb_questions" value="10" checked style="accent-color:var(--accent);">
+              <span style="font-size:20px;font-weight:700;color:var(--text-primary);">10</span>
+              <span style="font-size:11px;color:var(--text-muted);">questions</span>
+            </label>
+            <label style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="nb_questions" value="15" style="accent-color:var(--accent);">
+              <span style="font-size:20px;font-weight:700;color:var(--text-primary);">15</span>
+              <span style="font-size:11px;color:var(--text-muted);">questions</span>
+            </label>
+            <label style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="nb_questions" value="20" style="accent-color:var(--accent);">
+              <span style="font-size:20px;font-weight:700;color:var(--text-primary);">20</span>
+              <span style="font-size:11px;color:var(--text-muted);">questions</span>
+            </label>
           </div>
         </div>
 

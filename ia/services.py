@@ -125,6 +125,47 @@ def appeler_gemini(prompt: str, json_format: bool = False) -> dict:
 
     except Exception as e:
         logger.error(f"Erreur Gemini API: {e}")
+        # --- FALLBACK DE DÉVELOPPEMENT (MOCK) ---
+        # Si la clé API est bloquée (ex: clée fuité), on génère de fausses données 
+        # pour permettre à l'utilisateur de continuer à tester l'interface.
+        if settings.DEBUG:
+            logger.info("Utilisation des données fictives de développement (MOCK) suite à une erreur d'API.")
+            import time
+            time.sleep(2)  # Simuler le temps de réponse réseau
+            if json_format:
+                # S'il s'agit d'un QCM
+                mock_json = """
+                {"questions": [
+                    {"enonce": "Qu'est-ce que l'encapsulation dans le développement logiciel ?", "ordre": 1, "points": 1, "explication": "L'encapsulation consiste à regrouper les données et les méthodes qui les manipulent pour empêcher des modifications non autorisées.", "options": [
+                        {"libelle": "Créer des fichiers ZIP", "est_correct": false},
+                        {"libelle": "Regrouper et protéger les données d'un objet", "est_correct": true},
+                        {"libelle": "Traduire le code en binaire", "est_correct": false}
+                    ]},
+                    {"enonce": "À quoi sert le polymorphisme ?", "ordre": 2, "points": 1, "explication": "Le polymorphisme permet d'utiliser le même nom de méthode pour des comportements différents selon l'objet ciblé.", "options": [
+                        {"libelle": "Avoir plusieurs formes d'une même méthode", "est_correct": true},
+                        {"libelle": "Faire fonctionner du code sans serveur", "est_correct": false}
+                    ]},
+                    {"enonce": "Si A hérite de B en Python, comment définit-on B ?", "ordre": 3, "points": 1, "explication": "B est la classe parente de A.", "options": [
+                        {"libelle": "C'est une classe Parente (ou Superclasse)", "est_correct": true},
+                        {"libelle": "C'est une classe Enfant", "est_correct": false}
+                    ]}
+                ]}
+                """
+                return {'succes': True, 'contenu': mock_json, 'duree': 2.0, 'erreur': ''}
+            else:
+                # S'il s'agit d'un résumé
+                mock_resume = (
+                    "**📌 Points Clés de ce Document :**\n"
+                    "- Concepts avancés et principes fondamentaux de l'informatique.\n"
+                    "- Modélisation mathématique et programmation.\n"
+                    "- Exercices corrigés et structure logique du chapitre.\n\n"
+                    "**📄 Résumé Synthétique :**\n"
+                    "Ce document est un support éducatif qui aborde en profondeur les notions théoriques liées au programme. "
+                    "Il détaille les mécanismes de résolution d'exercices, inclut des définitions formelles, et propose "
+                    "une série de cas pratiques. *(Note : Ce texte est généré en mode hors-ligne fictif car la clé d'API Google est invalide ou expirée)*."
+                )
+                return {'succes': True, 'contenu': mock_resume, 'duree': 2.0, 'erreur': ''}
+
         return {'succes': False, 'contenu': '', 'erreur': str(e)}
 
 def appeler_huggingface(prompt: str) -> dict:

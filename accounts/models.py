@@ -95,6 +95,7 @@ class Utilisateur(AbstractUser):
         ('forest',   'Forest (vert sombre)'),
         ('ocean',    'Ocean (bleu profond)'),
         ('rose',     'Rose (mauve chaud)'),
+        ('noir',     'Noir (contraste élevé)'),
     ]
 
     # Informations personnelles supplémentaires
