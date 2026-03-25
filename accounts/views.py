@@ -7,10 +7,15 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.http import JsonResponse
 from django.utils.translation import gettext_lazy as _
-from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q
+from django.views.decorators.http import require_http_methods
+
+from documents.models import Document, Activite
+from quiz.models import SessionQCM
 from .forms import InscriptionForm, ConnexionForm, ProfilForm
+from .models import Utilisateur
 
 
 # =============================================================================
@@ -86,40 +91,27 @@ def deconnexion(request):
 def tableau_de_bord(request):
     """
     Tableau de bord personnalisé selon le rôle de l'utilisateur.
-    - Apprenant : historique activités, scores QCM, documents récents
-    - Enseignant : mes documents uploadés, en attente de validation
-    - Admin     : statistiques globales, modération
-    """
-    from documents.models import Document, Activite
-    from quiz.models import SessionQCM
 
+    Contenu selon le rôle :
+    - Apprenant : historique des activités, sessions QCM récentes
+    - Enseignant : documents uploadés, compteurs par statut
+    - Admin     : statistiques globales, file de modération
+    """
     utilisateur = request.user
-    contexte    = {
+    contexte = {
         'titre_page':  "Tableau de bord",
         'utilisateur': utilisateur,
     }
 
     if utilisateur.est_apprenant:
-        # Historique des activités récentes
         activites_recentes = Activite.objects.filter(
             utilisateur=utilisateur
         ).select_related('document').order_by('-date_action')[:10]
 
-        # Sessions QCM récentes
         sessions_qcm = SessionQCM.objects.filter(
             utilisateur=utilisateur,
             statut='termine'
         ).order_by('-date_debut')[:5]
-
-        # Score moyen
-        from django.db.models import Avg
-        score_moyen = SessionQCM.objects.filter(
-            utilisateur=utilisateur,
-            statut='termine',
-            score_total__gt=0
-        ).aggregate(
-            avg_pct=Avg('score_obtenu')
-        )
 
         contexte.update({
             'activites_recentes': activites_recentes,
@@ -128,24 +120,22 @@ def tableau_de_bord(request):
         })
 
     elif utilisateur.est_enseignant:
-        # Documents uploadés par l'enseignant
         mes_documents = Document.objects.filter(
             utilisateur=utilisateur
         ).order_by('-date_upload')[:10]
 
         contexte.update({
-            'mes_documents':      mes_documents,
-            'nb_en_attente':      Document.objects.filter(utilisateur=utilisateur, statut_doc='brouillon').count(),
-            'nb_publies':         Document.objects.filter(utilisateur=utilisateur, statut_doc='publie').count(),
-            'nb_rejetes':         Document.objects.filter(utilisateur=utilisateur, statut_doc='rejete').count(),
+            'mes_documents': mes_documents,
+            'nb_en_attente': Document.objects.filter(utilisateur=utilisateur, statut_doc='brouillon').count(),
+            'nb_publies':    Document.objects.filter(utilisateur=utilisateur, statut_doc='publie').count(),
+            'nb_rejetes':    Document.objects.filter(utilisateur=utilisateur, statut_doc='rejete').count(),
         })
 
     elif utilisateur.est_admin:
-        # Statistiques globales pour l'administrateur
         contexte.update({
-            'nb_utilisateurs':     utilisateur.__class__.objects.count(),
-            'nb_documents':        Document.objects.count(),
-            'nb_en_attente_valid': Document.objects.filter(statut_ia='valide', statut_humain=False).count(),
+            'nb_utilisateurs':      Utilisateur.objects.count(),
+            'nb_documents':         Document.objects.count(),
+            'nb_en_attente_valid':  Document.objects.filter(statut_ia='valide', statut_humain=False).count(),
             'nb_documents_publies': Document.objects.filter(statut_doc='publie').count(),
         })
 
@@ -172,20 +162,20 @@ def profil(request):
 # SET THEME (AJAX)
 # =============================================================================
 
+# Ensemble des codes de thème valides — doit rester synchronisé avec Utilisateur.THEME_CHOICES
+THEMES_VALIDES = frozenset({'brownie', 'midnight', 'arctic', 'forest', 'ocean', 'rose', 'noir'})
+
+
 @login_required
 @require_http_methods(["POST"])
-def set_theme(request):
-    """Sauvegarde le thème visuel choisi par l'utilisateur."""
-    from django.http import JsonResponse
-    from .models import Utilisateur
-
-    VALID_THEMES = {'brownie', 'midnight', 'arctic', 'forest', 'ocean', 'rose'}
+def definir_theme(request):
+    """Sauvegarde le thème visuel choisi par l'utilisateur connecté."""
     theme = request.POST.get('theme', '').strip()
 
-    if theme not in VALID_THEMES:
-        return JsonResponse({'ok': False, 'error': 'Thème inconnu'}, status=400)
+    if theme not in THEMES_VALIDES:
+        return JsonResponse({'succes': False, 'erreur': 'Thème inconnu.'}, status=400)
 
     request.user.theme = theme
     request.user.save(update_fields=['theme'])
-    return JsonResponse({'ok': True, 'theme': theme})
+    return JsonResponse({'succes': True, 'theme': theme})
 

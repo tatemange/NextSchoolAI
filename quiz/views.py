@@ -26,30 +26,38 @@ from .models import Question, OptionReponse, SessionQCM, ReponseSession
 def generer_qcm(request, doc_pk):
     """
     Lance la génération d'un QCM à partir d'un document.
-    Appel IA → Sauvegarde des questions → Redirection vers le QCM.
+    Pipeline : extraction texte -> appel IA -> sauvegarde questions -> session QCM.
     """
     document = get_object_or_404(Document, pk=doc_pk, statut_doc='publie')
 
     if request.method == 'POST':
-        nb_questions = int(request.POST.get('nb_questions', 10))
+        # Protection contre une saisie non numérique dans le champ nb_questions
+        try:
+            nb_questions = int(request.POST.get('nb_questions', 10))
+        except (ValueError, TypeError):
+            nb_questions = 10
         nb_questions = max(3, min(nb_questions, 20))
 
-        # Extraction du texte
-        filepath = document.url_fichier.path
-        texte    = extraire_texte(filepath)
+        chemin_document = document.url_fichier.path
+        texte_extrait   = extraire_texte(chemin_document)
 
-        if not texte or len(texte.strip()) < 100:
-            messages.error(request, _("Impossible de générer un QCM : le document ne contient pas assez de texte exploitable."))
+        if not texte_extrait or len(texte_extrait.strip()) < 100:
+            messages.error(
+                request,
+                _("Impossible de générer un QCM : le document ne contient pas assez de texte exploitable.")
+            )
             return redirect('documents:detail', pk=doc_pk)
 
-        # Appel au service IA
-        resultat = IAService.generer_qcm(texte, nb_questions=nb_questions, titre=document.titre)
+        resultat = IAService.generer_qcm(texte_extrait, nb_questions=nb_questions, titre=document.titre)
 
         if not resultat['succes'] or not resultat['questions']:
-            messages.error(request, _("La génération du QCM a échoué : %(erreur)s") % {'erreur': resultat.get('erreur', 'Erreur inconnue')})
+            messages.error(
+                request,
+                _("La génération du QCM a échoué : %(erreur)s") % {'erreur': resultat.get('erreur', 'Erreur inconnue')}
+            )
             return redirect('documents:detail', pk=doc_pk)
 
-        # Création de l'interaction IA
+        # Création du log de l'interaction IA
         interaction = InteractionIA.objects.create(
             utilisateur=request.user,
             document=document,
@@ -61,40 +69,48 @@ def generer_qcm(request, doc_pk):
             succes=True,
         )
 
-        # Création des questions et options
-        for q_data in resultat['questions']:
+        # Création des questions et de leurs options
+        for donnee_question in resultat['questions']:
             question = Question.objects.create(
                 interaction=interaction,
                 matiere=document.matiere,
-                enonce=q_data['enonce'],
-                points=q_data.get('points', 1),
-                explication=q_data.get('explication', ''),
-                ordre=q_data.get('ordre', 0),
+                enonce=donnee_question['enonce'],
+                points=donnee_question.get('points', 1),
+                explication=donnee_question.get('explication', ''),
+                ordre=donnee_question.get('ordre', 0),
             )
-            for opt in q_data.get('options', []):
-                OptionReponse.objects.create(
+            # Création en lot des options pour réduire le nombre d'appels base de données
+            options_a_creer = [
+                OptionReponse(
                     question=question,
-                    libelle_option=opt['libelle'],
-                    est_correct=opt.get('est_correct', False),
+                    libelle_option=donnee_option['libelle'],
+                    est_correct=donnee_option.get('est_correct', False),
                 )
+                for donnee_option in donnee_question.get('options', [])
+            ]
+            OptionReponse.objects.bulk_create(options_a_creer)
 
-        # Création de la session QCM
+        # Initialisation de la session QCM
+        nombre_questions = len(resultat['questions'])
         session = SessionQCM.objects.create(
             utilisateur=request.user,
             interaction=interaction,
             document=document,
-            nb_questions=len(resultat['questions']),
+            nb_questions=nombre_questions,
             score_total=sum(q.get('points', 1) for q in resultat['questions']),
         )
 
-        # Traçabilité activité
+        # Traçabilité de l'action dans l'historique
         Activite.objects.create(
             utilisateur=request.user,
             document=document,
             type_action='qcm',
         )
 
-        messages.success(request, _("QCM de %(nb)d questions généré avec succès !") % {'nb': len(resultat['questions'])})
+        messages.success(
+            request,
+            _("QCM de %(nb)d questions généré avec succès !") % {'nb': nombre_questions}
+        )
         return redirect('quiz:passer', session_pk=session.pk)
 
     return render(request, 'quiz/generer.html', {

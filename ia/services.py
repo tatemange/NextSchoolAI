@@ -1,95 +1,117 @@
 """
 Service IA — NextSchoolAI.
 
-Implémentation complète de l'Architecture Globale du Système :
-1. Entrée utilisateur (PDF / Image)
-2. Prétraitement (Nettoyage, OCR via Tesseract)
-3. Compréhension (Structure logique)
-4. Résolution (IA Spécialisée Gemini)
-5. Vérification (2e IA - Hugging Face ou Gemini croisé)
-6. Formatage (Nettoyage Markdown / JSON)
-7. Sortie Utilisateur
+Impémentation du pipeline de traitement des documents et de génération IA :
+
+    1. Entrée       — PDF natif ou image scannée
+    2. Prétraitement — Nettoyage OCR, extraction de texte (pdfplumber / Tesseract)
+    3. Compréhension — Analyse de la structure logique du document
+    4. Résolution   — Appel au modèle IA spécialisé (Gemini)
+    5. Vérification  — Validation croisée du contenu généré
+    6. Formatage    — Nettoyage Markdown / JSON
+    7. Sortie       — Réponse utilisateur
 """
 
 import os
 import time
 import json
 import logging
-from typing import Optional
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+# Nombre maximum de pages converties lors de l'OCR d'un PDF scané
+LIMITE_PAGES_OCR = 10
+
+# Nombre minimum de caractères extrait pour considérer qu'un PDF est natif (non scané)
+SEUIL_TEXTE_NATIF_CHARS = 100
+
+# Durée simulée des réponses mock (mode développement hors-ligne)
+DUREE_MOCK_SECONDES = 1.0
+
+# Limite de caractères transmis à l'API Hugging Face (augmentée pour le contexte des documents)
+LIMITE_PROMPT_HF_CHARS = 15000
 
 # =============================================================================
 # ÉTAPE 1 & 2 : ENTRÉE ET PRÉTRAITEMENT (NETTOYAGE & OCR)
 # =============================================================================
 
 def ocr_image(chemin_image: str) -> str:
-    """Applique l'OCR sur une image."""
+    """Applique l'OCR sur une image et retourne le texte extrait."""
     try:
         from PIL import Image
         import pytesseract
         return pytesseract.image_to_string(Image.open(chemin_image), lang='fra+eng')
     except Exception as e:
-        logger.error(f"Erreur OCR Image {chemin_image}: {e}")
+        logger.error("Erreur OCR image %s : %s", chemin_image, e)
         return ""
 
+
 def ocr_pdf(chemin_pdf: str) -> str:
-    """Convertit un PDF scanné en images puis applique l'OCR."""
+    """Convertit un PDF scané en images puis applique l'OCR page par page."""
     try:
         from pdf2image import convert_from_path
         import pytesseract
         images = convert_from_path(chemin_pdf, dpi=200)
-        texte_complet = []
-        # On limite aux 10 premières pages pour ne pas exploser la RAM
-        for i, img in enumerate(images[:10]):
-            texte = pytesseract.image_to_string(img, lang='fra+eng')
-            texte_complet.append(texte)
-        return "\n".join(texte_complet)
+        textes_par_page = []
+        for image in images[:LIMITE_PAGES_OCR]:
+            texte = pytesseract.image_to_string(image, lang='fra+eng')
+            textes_par_page.append(texte)
+        return "\n".join(textes_par_page)
     except Exception as e:
-        logger.error(f"Erreur OCR PDF {chemin_pdf}: {e}")
+        logger.error("Erreur OCR PDF %s : %s", chemin_pdf, e)
         return ""
 
 def extraire_texte(chemin_fichier: str) -> str:
     """
-    Extrait intelligemment le texte (Plumber OCR ou Fallback OCR).
+    Extrait le texte d'un fichier de manière intelligente.
+
+    Pour les PDF, tente d'abord l'extraction native (plus rapide et précise).
+    Si le texte extrait est insuffisant (<  SEUIL_TEXTE_NATIF_CHARS caractères),
+    le fichier est traité comme un scan et l'OCR est lancé.
     """
     if not os.path.exists(chemin_fichier):
         return ""
-    
-    ext = chemin_fichier.lower().split('.')[-1]
-    
-    # Si c'est une image directe
-    if ext in ['jpg', 'jpeg', 'png', 'webp']:
+
+    extension = chemin_fichier.lower().split('.')[-1]
+
+    if extension in ('jpg', 'jpeg', 'png', 'webp'):
         return ocr_image(chemin_fichier)
-    
-    # Si c'est un PDF
-    if ext == 'pdf':
+
+    if extension == 'pdf':
         try:
             import pdfplumber
-            texte_brut = []
+            textes_pages = []
             with pdfplumber.open(chemin_fichier) as pdf:
                 for page in pdf.pages:
                     contenu = page.extract_text()
                     if contenu:
-                        texte_brut.append(contenu)
-            texte_final = "\n".join(texte_brut).strip()
-            
-            # Si le PDF est un scan (pas de texte détecté par Plumber), on déclenche l'OCR
-            if len(texte_final) < 100:
-                logger.info(f"PDF sans texte natif détecté ({len(texte_final)} chars). Lancement OCR...")
+                        textes_pages.append(contenu)
+            texte_natif = "\n".join(textes_pages).strip()
+
+            if len(texte_natif) < SEUIL_TEXTE_NATIF_CHARS:
+                logger.info(
+                    "PDF sans texte natif (%d caractères). Lancement de l'OCR.",
+                    len(texte_natif)
+                )
                 return ocr_pdf(chemin_fichier)
-            return texte_final
-            
+            return texte_natif
+
         except Exception as e:
-            logger.error(f"Erreur pdfplumber, fallback sur OCR: {e}")
+            logger.error("Erreur pdfplumber, bascule sur l'OCR : %s", e)
             return ocr_pdf(chemin_fichier)
 
     return ""
 
 def nettoyer_texte(texte: str, max_chars: int = 8000) -> str:
-    """Nettoie le bruit de l'OCR et tronque à la limite du LLM."""
-    if not texte: return ""
+    """
+    Nettoie les artefacts OCR et tronque le texte à la limite autorisée.
+
+    La troncature s'effectue sur une limite de mot (rsplit) pour éviter
+    de couper une phrase en plein milieu.
+    """
+    if not texte:
+        return ""
     lignes = [ligne.strip() for ligne in texte.splitlines() if ligne.strip()]
     texte_propre = "\n".join(lignes)
     if len(texte_propre) > max_chars:
@@ -97,117 +119,204 @@ def nettoyer_texte(texte: str, max_chars: int = 8000) -> str:
     return texte_propre
 
 # =============================================================================
-# MOTEURS IA (GEMINI & HUGGING FACE)
+# REPONSES MOCK (MODE DEVELOPPEMENT HORS-LIGNE)
+# =============================================================================
+
+def _mock_qcm() -> dict:
+    """Retourne un QCM fictif validé pour les tests sans clé API."""
+    contenu_mock = (
+        '{"questions": ['
+        '{"enonce": "Qu\'est-ce que l\'encapsulation ?", "ordre": 1, "points": 1,'
+        ' "explication": "Regrouper données et méthodes pour protéger l\'état interne.",'
+        ' "options": ['
+        '{"libelle": "Créer des fichiers ZIP", "est_correct": false},'
+        '{"libelle": "Protéger les données d\'un objet", "est_correct": true},'
+        '{"libelle": "Traduire le code en binaire", "est_correct": false}'
+        ']},'
+        '{"enonce": "A quoi sert le polymorphisme ?", "ordre": 2, "points": 1,'
+        ' "explication": "Utiliser le même nom de méthode pour différents comportements.",'
+        ' "options": ['
+        '{"libelle": "Plusieurs formes d\'une même méthode", "est_correct": true},'
+        '{"libelle": "Faire tourner du code sans serveur", "est_correct": false}'
+        ']}'
+        ']}'
+    )
+    return {'succes': True, 'contenu': contenu_mock, 'duree': DUREE_MOCK_SECONDES, 'erreur': ''}
+
+
+def _mock_chat() -> dict:
+    """Retourne une réponse de chat fictive pour les tests sans clé API."""
+    contenu_mock = (
+        "*(Note : Réponse fictive, mode hors-ligne, clé API Gemini absente ou expirée.)*\n\n"
+        "Je suis un **assistant pédagogique IA** capable de :\n"
+        "- Expliquer n'importe quelle **section** ou **point** du cours\n"
+        "- Générer des **exemples de code** (Python, C, Java, etc.)\n"
+        "- Afficher des **formules mathématiques** et physiques en LaTeX\n\n"
+        "**Exemple — Code Python (POO) :**\n"
+        "```python\n"
+        "class Animal:\n"
+        "    def __init__(self, nom):\n"
+        "        self.nom = nom\n\n"
+        "    def parler(self):\n"
+        "        raise NotImplementedError('Methode abstraite')\n\n"
+        "class Chien(Animal):\n"
+        "    def parler(self):\n"
+        "        return f'{self.nom} dit : Ouaf !'\n\n"
+        "rex = Chien('Rex')\n"
+        "print(rex.parler())\n"
+        "```\n\n"
+        "**Exemple — Formule LaTeX :**\n"
+        "$$E = mc^2$$\n\n"
+        "> Pour activer les vraies réponses, configurez `GEMINI_API_KEY` dans `.env`."
+    )
+    return {'succes': True, 'contenu': contenu_mock, 'duree': DUREE_MOCK_SECONDES, 'erreur': ''}
+
+
+def _mock_resume() -> dict:
+    """Retourne un résumé fictif pour les tests sans clé API."""
+    contenu_mock = (
+        "## Points Cles\n"
+        "- Concepts avancés et principes fondamentaux du programme.\n"
+        "- Modélisation mathématique et exercices corrigés.\n"
+        "- Structure logique et définitions formelles.\n\n"
+        "## Resumé Synthétique\n"
+        "Ce document aborde en profondeur les notions théoriques liées au programme. "
+        "Il présente les mécanismes de résolution d'exercices et des cas pratiques.\n\n"
+        "> *(Note : Texte fictif — clé API Google invalide ou expirée.)*"
+    )
+    return {'succes': True, 'contenu': contenu_mock, 'duree': DUREE_MOCK_SECONDES, 'erreur': ''}
+
+
+# =============================================================================
+# MOTEURS IA (GEMINI ET HUGGING FACE)
 # =============================================================================
 
 def appeler_gemini(prompt: str, json_format: bool = False) -> dict:
-    """Moteur IA principal (Résolution + Compréhension)."""
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
-        return {'succes': False, 'contenu': '', 'erreur': "Clé API absente"}
+    """Appelle l'API Gemini et retourne le résultat structuré."""
+    cle_api = settings.GEMINI_API_KEY
+    if not cle_api:
+        return {'succes': False, 'contenu': '', 'erreur': "Clé API absente."}
 
     try:
         import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        genai.configure(api_key=cle_api)
+        modele = genai.GenerativeModel(settings.GEMINI_MODEL)
 
-        config = genai.GenerationConfig(
+        configuration = genai.GenerationConfig(
             max_output_tokens=settings.IA_MAX_TOKENS,
             temperature=0.3 if json_format else 0.7,
         )
 
         debut = time.time()
-        response = model.generate_content(prompt, generation_config=config)
+        reponse = modele.generate_content(prompt, generation_config=configuration)
         duree = round(time.time() - debut, 2)
-        
-        contenu = response.text if response.text else ""
+
+        contenu = reponse.text if reponse.text else ""
         return {'succes': True, 'contenu': contenu, 'duree': duree, 'erreur': ''}
 
-    except Exception as e:
-        logger.error(f"Erreur Gemini API: {e}")
-        # --- FALLBACK DE DÉVELOPPEMENT (MOCK) ---
-        # Si la clé API est bloquée (ex: clée fuité), on génère de fausses données 
-        # pour permettre à l'utilisateur de continuer à tester l'interface.
+    except Exception as erreur:
+        logger.error("Erreur API Gemini : %s", erreur)
+
         if settings.DEBUG:
-            logger.info("Utilisation des données fictives de développement (MOCK) suite à une erreur d'API.")
-            import time
-            time.sleep(2)  # Simuler le temps de réponse réseau
+            logger.info("Bascule sur le mock de développement (API absent ou clé invalide).")
+            time.sleep(DUREE_MOCK_SECONDES)
+
             if json_format:
-                # S'il s'agit d'un QCM
-                mock_json = """
-                {"questions": [
-                    {"enonce": "Qu'est-ce que l'encapsulation dans le développement logiciel ?", "ordre": 1, "points": 1, "explication": "L'encapsulation consiste à regrouper les données et les méthodes qui les manipulent pour empêcher des modifications non autorisées.", "options": [
-                        {"libelle": "Créer des fichiers ZIP", "est_correct": false},
-                        {"libelle": "Regrouper et protéger les données d'un objet", "est_correct": true},
-                        {"libelle": "Traduire le code en binaire", "est_correct": false}
-                    ]},
-                    {"enonce": "À quoi sert le polymorphisme ?", "ordre": 2, "points": 1, "explication": "Le polymorphisme permet d'utiliser le même nom de méthode pour des comportements différents selon l'objet ciblé.", "options": [
-                        {"libelle": "Avoir plusieurs formes d'une même méthode", "est_correct": true},
-                        {"libelle": "Faire fonctionner du code sans serveur", "est_correct": false}
-                    ]},
-                    {"enonce": "Si A hérite de B en Python, comment définit-on B ?", "ordre": 3, "points": 1, "explication": "B est la classe parente de A.", "options": [
-                        {"libelle": "C'est une classe Parente (ou Superclasse)", "est_correct": true},
-                        {"libelle": "C'est une classe Enfant", "est_correct": false}
-                    ]}
-                ]}
-                """
-                return {'succes': True, 'contenu': mock_json, 'duree': 2.0, 'erreur': ''}
-            else:
-                # S'il s'agit d'un résumé
-                mock_resume = (
-                    "**📌 Points Clés de ce Document :**\n"
-                    "- Concepts avancés et principes fondamentaux de l'informatique.\n"
-                    "- Modélisation mathématique et programmation.\n"
-                    "- Exercices corrigés et structure logique du chapitre.\n\n"
-                    "**📄 Résumé Synthétique :**\n"
-                    "Ce document est un support éducatif qui aborde en profondeur les notions théoriques liées au programme. "
-                    "Il détaille les mécanismes de résolution d'exercices, inclut des définitions formelles, et propose "
-                    "une série de cas pratiques. *(Note : Ce texte est généré en mode hors-ligne fictif car la clé d'API Google est invalide ou expirée)*."
-                )
-                return {'succes': True, 'contenu': mock_resume, 'duree': 2.0, 'erreur': ''}
+                return _mock_qcm()
+            if "Question de l'étudiant :" in prompt:
+                return _mock_chat()
+            return _mock_resume()
 
-        return {'succes': False, 'contenu': '', 'erreur': str(e)}
+        return {'succes': False, 'contenu': '', 'erreur': str(erreur)}
 
-def appeler_huggingface(prompt: str) -> dict:
-    """2e IA (Vérification et Fallback)."""
-    api_key = settings.HUGGINGFACE_API_KEY
-    if not api_key:
-        return {'succes': False, 'contenu': '', 'erreur': "Clé HF absente"}
+
+def appeler_huggingface(prompt: str, json_format: bool = False, model_override: str = None) -> dict:
+    """Appelle l'API Hugging Face en tant que moteur de référence (désormais prioritaire)."""
+    cle_api = settings.HUGGINGFACE_API_KEY
+    if not cle_api:
+        return {'succes': False, 'contenu': '', 'erreur': "Clé Hugging Face absente."}
+    
+    model = model_override or settings.HUGGINGFACE_MODEL
     try:
-        import requests
-        url = f"https://api-inference.huggingface.co/models/{settings.HUGGINGFACE_MODEL}"
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(api_key=cle_api)
         debut = time.time()
-        res = requests.post(url, headers={"Authorization": f"Bearer {api_key}"}, json={"inputs": prompt[:2000]})
-        duree = round(time.time() - debut, 2)
         
-        if res.status_code == 200:
-            data = res.json()
-            cnt = data[0].get('summary_text', '') if isinstance(data, list) else str(data)
-            return {'succes': True, 'contenu': cnt, 'duree': duree, 'erreur': ''}
-        return {'succes': False, 'contenu': '', 'erreur': f"HF status {res.status_code}"}
-    except Exception as e:
-        return {'succes': False, 'contenu': '', 'erreur': str(e)}
+        system_prompt = "Tu es un professeur expert. Réponds en français de manière très claire."
+        if json_format:
+            system_prompt += " IMPORTANT: Renvoyer UNIQUEMENT un objet JSON valide, SANS texte autour ni code block ```."
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt[:LIMITE_PROMPT_HF_CHARS]}
+        ]
+        
+        response = client.chat_completion(
+            model=model,
+            messages=messages,
+            max_tokens=settings.IA_MAX_TOKENS,
+            temperature=0.3 if json_format else 0.7
+        )
+        duree = round(time.time() - debut, 2)
+
+        contenu = response.choices[0].message.content
+        return {'succes': True, 'contenu': contenu.strip(), 'duree': duree, 'erreur': ''}
+    except Exception as erreur:
+        return {'succes': False, 'contenu': '', 'erreur': str(erreur)}
+
+def appeler_ia(prompt: str, json_format: bool = False) -> dict:
+    """Routeur IA (Priorité HF avec Fallback DeepSeek, puis Gemini, puis Mock)."""
+    if settings.HUGGINGFACE_API_KEY:
+        # Essai 1: Modèle préféré (Llama 3.1)
+        res = appeler_huggingface(prompt, json_format)
+        if res['succes']:
+            res['moteur'] = 'huggingface'
+            return res
+            
+        logger.error("HuggingFace primaire échoué: %s", res.get('erreur'))
+        
+        # Essai 2: Fallback demandé par l'utilisateur
+        if "Llama" in settings.HUGGINGFACE_MODEL:
+            res_fb = appeler_huggingface(prompt, json_format, "deepseek-ai/DeepSeek-R1")
+            if res_fb['succes']:
+                res_fb['moteur'] = 'deepseek'
+                return res_fb
+            
+    # Essai 3: Gemini (si clé configurée, ce qui n'est plus le cas mais géré)
+    res_gemini = appeler_gemini(prompt, json_format)
+    if res_gemini['succes']:
+        res_gemini['moteur'] = 'gemini'
+        return res_gemini
+        
+    # Essai 4: Mock (Dernier recours absolu)
+    logger.info("Bascule sur le mock IA car tous les moteurs ont échoué.")
+    time.sleep(1)
+    if json_format: return _mock_qcm()
+    if "Question de l'étudiant :" in prompt: return _mock_chat()
+    return _mock_resume()
+
 
 # =============================================================================
 # PIPELINE IA COMPLET (ÉTAPES 3, 4, 5, 6, 7)
 # =============================================================================
 
 class IAService:
-    
+
     @classmethod
     def _etape_comprehension(cls, texte: str) -> str:
-        """Étape 3 : Structure du document"""
+        """Étape 3 : Analyse la structure du document."""
         prompt = f"Analyse ce texte et donne-moi uniquement ses 3 thèmes majeurs très brièvement:\n\n{texte[:3000]}"
-        res = appeler_gemini(prompt)
+        res = appeler_ia(prompt)
         return res['contenu'] if res['succes'] else ""
 
     @classmethod
     def _etape_verification(cls, tache: str, contenu_resolu: str) -> bool:
-        """Étape 5 : 2e IA vérifie qu'il n'y a pas d'hallucination flagrante"""
-        # On utilise HF pour valider le texte (via un résumé ou sentiment si poussé)
-        # S'il rate, on ignore (on ne bloque pas la pipeline mais on alerte)
-        prompt_verif = f"Ce contenu pédagogique semble-t-il cohérent et sans propos inappropriés ? Réponds Oui ou Non : {contenu_resolu[:1000]}"
-        res_verif = appeler_gemini(prompt_verif)  # Gemini agit comme Juge 2 (en dev, HF est instable)
+        """Étape 5 : 2e IA vérifie la cohérence du contenu."""
+        prompt_verif = (
+            f"Ce contenu pédagogique semble-t-il cohérent et sans propos inappropriés ? "
+            f"Réponds Oui ou Non : {contenu_resolu[:1000]}"
+        )
+        res_verif = appeler_ia(prompt_verif)
         if res_verif['succes'] and "Non" in res_verif['contenu']:
             logger.warning("[IA] La vérification croisée a levé un doute sur le contenu généré!")
             return False
@@ -215,68 +324,90 @@ class IAService:
 
     @classmethod
     def generer_resume(cls, texte_document: str, titre: str = "", chemin_document: str = "") -> dict:
-        """Pipeline complète de résumé."""
-        # Étapes 1 & 2
+        """Pipeline complète de résumé — utilise TOUT le document pour le contexte."""
         texte = extraire_texte(chemin_document) if chemin_document else texte_document
         texte_propre = nettoyer_texte(texte)
         if not texte_propre:
             return {'succes': False, 'contenu': '', 'erreur': "Texte vide après OCR/Prétraitement."}
 
-        # Étape 3: Compréhension
         structure = cls._etape_comprehension(texte_propre)
 
-        # Étape 4: Résolution
-        prompt = f"""Tu es professeur. Voici les thèmes du document ({structure}).
-        Fais un résumé éducatif structuré (Points clés, Résumé, Ce qu'il faut retenir) pour :
-        {texte_propre}"""
-        resol = appeler_gemini(prompt)
+        prompt = (
+            f"Tu es un professeur expert. Le document s'intitule \"{titre}\" et aborde les thèmes suivants : {structure}.\n"
+            f"Génère un résumé éducatif complet et structuré en Markdown (avec ## Titres, **gras**, listes à puces).\n"
+            f"Inclure : Points clés, Résumé, Formules importantes si présentes (en LaTeX $$...$$), Ce qu'il faut retenir.\n\n"
+            f"Voici le document :\n{texte_propre}"
+        )
+        resol = appeler_ia(prompt)
 
-        # Étape 5: Vérification
-        if resol['succes']:
-            cls._etape_verification("resume", resol['contenu'])
+        if resol.get('succes'):
+            cls._etape_verification("resume", resol.get('contenu', ''))
 
-        # Étape 6 & 7: Formatage et Sortie
-        resol['moteur'] = 'gemini'
+        resol.setdefault('moteur', 'huggingface')
         return resol
 
     @classmethod
     def generer_qcm(cls, texte_document: str, nb_questions: int = 10, titre: str = "", chemin_document: str = "") -> dict:
         """Pipeline complète de QCM."""
-        # Étapes 1 & 2
         texte = extraire_texte(chemin_document) if chemin_document else texte_document
         texte_propre = nettoyer_texte(texte)
         if not texte_propre:
             return {'succes': False, 'questions': [], 'erreur': "Texte vide après OCR/Prétraitement."}
 
-        # Étape 3: Compréhension
         structure = cls._etape_comprehension(texte_propre)
 
-        # Étape 4: Résolution
-        prompt = f"""Fais un QCM de {nb_questions} questions sur le sujet "{titre}" basé sur ces thèmes: {structure}.
-        Texte source: {texte_propre}
-        Cible JSON strict UNIQUEMENT: {{"questions": [ {{"enonce": "...", "ordre": 1, "points": 1, "explication": "...", "options": [{{"libelle": "A", "est_correct": true}}, {{"libelle": "B", "est_correct": false}}] }} ] }}"""
-        
-        resol = appeler_gemini(prompt, json_format=True)
+        prompt = (
+            f'Fais un QCM de {nb_questions} questions sur le sujet "{titre}" basé sur ces thèmes: {structure}.\n'
+            f'Texte source: {texte_propre}\n'
+            f'Réponds en JSON strict UNIQUEMENT: {{"questions": [ {{"enonce": "...", "ordre": 1, "points": 1, '
+            f'"explication": "...", "options": [{{"libelle": "A", "est_correct": true}}, '
+            f'{{"libelle": "B", "est_correct": false}}] }} ] }}'
+        )
+
+        resol = appeler_ia(prompt, json_format=True)
         if not resol['succes']:
             return {'succes': False, 'questions': [], 'erreur': resol['erreur']}
 
-        # Étape 5: Vérification croisée JSON structure
         contenu = resol['contenu'].strip()
-        
-        # Étape 6: Formatage JSON propre
-        if contenu.startswith('```json'): contenu = contenu[7:]
-        if contenu.startswith('```'): contenu = contenu[3:]
-        if contenu.endswith('```'): contenu = contenu[:-3]
-        
+
+        if contenu.startswith('```json'):
+            contenu = contenu[7:]
+        if contenu.startswith('```'):
+            contenu = contenu[3:]
+        if contenu.endswith('```'):
+            contenu = contenu[:-3]
+
         try:
             data = json.loads(contenu)
-            return {'succes': True, 'questions': data.get('questions', []), 'moteur': 'gemini', 'erreur': ''}
-        except:
-            return {'succes': False, 'questions': [], 'erreur': "Erreur Formatage JSON 2e IA."}
+            return {'succes': True, 'questions': data.get('questions', []), 'moteur': resol.get('moteur', 'huggingface'), 'erreur': ''}
+        except Exception:
+            return {'succes': False, 'questions': [], 'erreur': "Erreur Formatage JSON de l'IA."}
+
+    @classmethod
+    def generer_explication(cls, question: str, contexte: str = "") -> dict:
+        """
+        Chat IA — Répond à une question basée sur le CONTENU COMPLET du document.
+        L'IA peut expliquer n'importe quelle section, point, formule ou concept.
+        """
+        prompt = (
+            "Tu es un assistant pédagogique expert. Tu as accès au contenu complet d'un document.\n"
+            "Réponds de façon précise, structurée et pédagogique à la question de l'étudiant.\n"
+            "- Utilise le **Markdown** pour formater ta réponse (titres, listes, gras).\n"
+            "- Si des formules mathématiques ou physiques sont concernées, utilise la notation LaTeX ($$...$$).\n"
+            "- Si du code est demandé, fournis un exemple complet et commenté.\n"
+            "- Si l'étudiant demande 'la section X' ou 'le point Y', fournis ce contenu précis extrait du document.\n\n"
+        )
+        if contexte:
+            prompt += f"=== CONTENU DU DOCUMENT ===\n{contexte}\n=== FIN DU DOCUMENT ===\n\n"
+        prompt += f"Question de l'étudiant : {question}"
+
+        resol = appeler_ia(prompt)
+        return resol
 
     @classmethod
     def analyser_document(cls, document) -> str:
         """Auto-Validation IA (post-upload). Étape OCR + Compréhension."""
         texte = extraire_texte(document.url_fichier.path)
-        if len(texte) < 50: return 'rejete'
+        if len(texte) < 50:
+            return 'rejete'
         return 'valide'

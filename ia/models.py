@@ -31,6 +31,7 @@ class InteractionIA(models.Model):
     MOTEUR_IA_CHOICES = [
         ('gemini',       'Google Gemini'),
         ('huggingface',  'Hugging Face'),
+        ('deepseek',     'DeepSeek R1'),
         ('local',        'Modèle local'),
     ]
 

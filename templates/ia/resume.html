@@ -24,16 +24,43 @@
     </span>
   </div>
   <div class="card-body">
-    <div style="font-size:14px;color:var(--text-secondary);line-height:1.8;white-space:pre-wrap;">{{ resume }}</div>
+    {{ resume|json_script:"resume-data" }}
+    <div id="resume-content-rendered" class="markdown-body" style="font-size:15.5px;color:var(--text-1);line-height:1.75;font-weight:400;letter-spacing:0.1px;"></div>
+
+    <!-- Chat IA Interface -->
+    <div class="chat-container" style="margin-top:30px; border-top:1px solid var(--border); padding-top:20px;">
+      <h3 style="font-size:15px; font-weight:600; color:var(--text-primary); margin-bottom:16px; display:flex; align-items:center;">
+        <i data-lucide="message-square" style="width:16px;height:16px;margin-right:8px;color:var(--accent);"></i>
+        Poser une question à l'IA sur ce document
+      </h3>
+      <div id="chat-messages" style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px; max-height:350px; overflow-y:auto; padding-right:10px;">
+        <!-- Les messages s'afficheront ici -->
+      </div>
+      <form id="chat-form" style="position:relative; margin-bottom:0;">
+        <div style="display:flex; align-items:center; background:#ffffff; border:1px solid var(--border); border-radius:100px; padding:6px 16px; transition:border-color 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" id="chat-input-wrapper">
+          <button type="button" class="btn btn-ghost btn-sm" style="padding:0; min-width:32px; height:32px; border-radius:50%; color:#666;">
+            <i data-lucide="plus" style="width:20px; height:20px;"></i>
+          </button>
+          
+          <input type="text" id="chat-input" placeholder="Poser une question..." required autocomplete="off" 
+                 style="flex:1; background:transparent; border:none; outline:none; padding:8px 16px; color:#000000; font-size:15px; font-weight:500;">
+                 
+          <button type="submit" id="chat-submit" style="display:flex; align-items:center; gap:6px; background:#f0f0f0; border:none; border-radius:100px; padding:6px 16px; color:#333; font-weight:600; font-size:13.5px; cursor:pointer; transition:all 0.2s;">
+            <i data-lucide="mic" id="chat-action-icon" style="width:16px; height:16px;"></i>
+            <span id="chat-action-text">Voix</span>
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
-  <div class="card-footer">
-    <a href="{% url 'quiz:generer' document.pk %}" class="btn btn-primary">
-      <i data-lucide="clipboard-list"></i> Générer un QCM depuis ce document
+  <div class="card-footer" style="margin-top:0; border-top:none; padding-top:0;">
+    <a href="{% url 'quiz:generer' document.pk %}" class="btn btn-ghost" style="color:var(--text-primary); border:1px solid var(--border);">
+      <i data-lucide="clipboard-list"></i> Générer un QCM
     </a>
     <form method="post" action="{% url 'ia:resumer' document.pk %}">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">
-        <i data-lucide="refresh-cw"></i> Regénérer
+      <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--text-muted);">
+        <i data-lucide="refresh-cw"></i> Regénérer le résumé
       </button>
     </form>
   </div>
@@ -57,4 +84,220 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const sourceElem = document.getElementById("resume-data");
+  if (!sourceElem) return; // Pas de résumé généré
+  
+  let sourceText = "";
+  try { sourceText = JSON.parse(sourceElem.textContent); } catch(e) {}
+  const renderedDiv = document.getElementById("resume-content-rendered");
+  
+  if (sourceText) {
+    try {
+      if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+        const dirtyHtml = marked.parse(sourceText);
+        const cleanHtml = DOMPurify.sanitize(dirtyHtml);
+        renderedDiv.innerHTML = cleanHtml;
+        if (window.MathJax) {
+          MathJax.typesetPromise([renderedDiv]).catch(err => console.error("MathJax Error:", err));
+        }
+      } else {
+        // Fallback si CDNs non chargés
+        renderedDiv.textContent = sourceText;
+      }
+    } catch (e) {
+      console.error("Erreur parsing initial:", e);
+      renderedDiv.textContent = sourceText;
+    }
+  }
+
+  // --- Logique du Chat IA ---
+  const chatForm = document.getElementById('chat-form');
+  const chatInput = document.getElementById('chat-input');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatSubmitBtn = document.getElementById('chat-submit');
+  const actionIcon = document.getElementById('chat-action-icon');
+  const actionText = document.getElementById('chat-action-text');
+  
+  // Transition dynamique Voix <-> Envoyer
+  chatInput.addEventListener('input', function() {
+    if (this.value.trim().length > 0) {
+      chatSubmitBtn.style.background = "#000000";
+      chatSubmitBtn.style.color = "#ffffff";
+      
+      // Preserve inline styles by removing then setting
+      const currentIcon = document.getElementById('chat-action-icon');
+      if (currentIcon) {
+        currentIcon.setAttribute('data-lucide', 'send');
+      }
+      actionText.textContent = "Envoyer";
+    } else {
+      chatSubmitBtn.style.background = "#f0f0f0";
+      chatSubmitBtn.style.color = "#333333";
+      
+      const currentIcon = document.getElementById('chat-action-icon');
+      if (currentIcon) {
+        currentIcon.setAttribute('data-lucide', 'mic');
+      }
+      actionText.textContent = "Voix";
+    }
+    lucide.createIcons({
+      nameAttr: 'data-lucide',
+      attrs: {
+        class: "lucide",
+        style: "width:16px; height:16px;"
+      }
+    }); // Make sure dimensions are enforced
+  });
+  
+  // Effet focus sur la bordure (pill shape wrapper)
+  const wrapper = document.getElementById('chat-input-wrapper');
+  chatInput.addEventListener('focus', () => wrapper.style.borderColor = "var(--primary)");
+  chatInput.addEventListener('blur', () => wrapper.style.borderColor = "var(--border)");
+  
+  chatForm.addEventListener('submit', async function(e) {
+    e.preventDefault(); // SUPER IMPORTANT : EMPÊCHE LE RECHARGEMENT
+    const message = chatInput.value.trim();
+    if (!message) return; // Si c'est vide (clic sur Voix sans API Voice implémentée), on ignore pour l'instant
+    
+    // 1. Ajouter le message de l'utilisateur
+    appendMessage(message, 'user');
+    chatInput.value = '';
+    chatInput.dispatchEvent(new Event('input')); // Réinitialise le bouton à "Voix"
+    
+    // 2. Mettre le bouton en mode chargement
+    chatSubmitBtn.disabled = true;
+    const currentIcon = document.getElementById('chat-action-icon');
+    if (currentIcon) {
+      currentIcon.setAttribute('data-lucide', 'loader-2');
+      currentIcon.classList.add('spin');
+    }
+    actionText.textContent = "";
+    lucide.createIcons({ attrs: { style: "width:16px; height:16px;" }});
+    
+    // 3. Envoyer la requête AJAX
+    try {
+      const response = await fetch("{% url 'ia:chat_ajax' document.pk %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: new URLSearchParams({ 'message': message })
+      });
+      const data = await response.json();
+      
+      if(data.succes) {
+        appendMessage(data.reponse, 'ai');
+      } else {
+        appendMessage("Désolé, une erreur est survenue : " + data.erreur, 'ai', true);
+      }
+    } catch (err) {
+      console.error(err);
+      appendMessage("Erreur réseau requise.", 'ai', true);
+    } finally {
+      // 4. Restaurer le bouton
+      chatSubmitBtn.disabled = false;
+      const currentIcon = document.getElementById('chat-action-icon');
+      if (currentIcon) {
+        currentIcon.classList.remove('spin');
+        currentIcon.setAttribute('data-lucide', 'mic');
+      }
+      actionText.textContent = "Voix";
+      chatSubmitBtn.style.background = "#f0f0f0";
+      chatSubmitBtn.style.color = "#333333";
+      lucide.createIcons({ attrs: { style: "width:16px; height:16px;" }});
+      chatInput.focus();
+    }
+  });
+  
+  function appendMessage(text, role, isError=false) {
+    const msgDiv = document.createElement('div');
+    msgDiv.style.padding = "10px 14px";
+    msgDiv.style.borderRadius = "var(--radius)";
+    msgDiv.style.maxWidth = "85%";
+    msgDiv.style.fontSize = "13.5px";
+    msgDiv.style.lineHeight = "1.6";
+    
+    if (role === 'user') {
+      msgDiv.style.background = "#ffffff";
+      msgDiv.style.color = "#000000";
+      msgDiv.style.alignSelf = "flex-end";
+      msgDiv.style.borderBottomRightRadius = "4px";
+      msgDiv.style.fontWeight = "500";
+      msgDiv.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)";
+      msgDiv.textContent = text; // user input brut
+    } else {
+      msgDiv.style.background = isError ? "rgba(239, 68, 68, 0.1)" : "var(--bg-secondary)";
+      msgDiv.style.color = isError ? "#ef4444" : "var(--text-1)";
+      msgDiv.style.border = "1px solid " + (isError ? "rgba(239,68,68,0.3)" : "rgba(248, 233, 192, 0.15)");
+      msgDiv.style.alignSelf = "flex-start";
+      msgDiv.style.borderTopLeftRadius = "4px";
+      msgDiv.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+      msgDiv.classList.add('markdown-body'); // Appliquer les styles md
+      
+      const cleanHtml = DOMPurify.sanitize(marked.parse(text));
+      msgDiv.innerHTML = cleanHtml;
+      
+      // Lancer MathJax pour la nouvelle bulle
+      if (window.MathJax) {
+        MathJax.typesetPromise([msgDiv]);
+      }
+    }
+    chatMessages.appendChild(msgDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll en bas
+  }
+});
+</script>
+<style>
+/* CSS Spécifique au Markdown rendu */
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  color: var(--text-primary);
+  margin-top: 1.2em;
+  margin-bottom: 0.6em;
+  font-weight: 700;
+  font-size: 1.1em;
+}
+.markdown-body p { margin-bottom: 0.8em; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body ul, .markdown-body ol { margin-left: 1.5em; margin-bottom: 1em; }
+.markdown-body li { margin-bottom: 0.3em; }
+.markdown-body strong { color: var(--text-primary); font-weight: 600; }
+.markdown-body em { font-style: italic; color: var(--text-secondary); }
+.markdown-body code {
+  background: rgba(0,0,0,0.1);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+[data-theme="noir"] .markdown-body code { background: rgba(255,255,255,0.1); }
+
+/* Fix Global du MathJax SVG 
+   Assure que le rendu mathématique 
+   ne s'étire pas de manière disproportionnée.
+*/
+mjx-container svg {
+  max-width: none !important;
+  display: inline-block !important;
+}
+
+/* Chat UI scrollbar */
+#chat-messages::-webkit-scrollbar { width: 4px; }
+#chat-messages::-webkit-scrollbar-track { background: transparent; }
+#chat-messages::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 4px; }
+
+/* Loader spin */
+@keyframes spin { 100% { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
+@media (max-width: 600px) {
+  .hide-mobile { display: none; }
+  #chat-submit { padding: 0 16px !important; }
+}
+</style>
 {% endblock %}

@@ -18,6 +18,17 @@
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/nextschoolai.css' %}?v=1.1">
 
+  <!-- Rendu IA (Markdown, Securité, LaTeX) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -101,10 +112,13 @@
 
     <!-- TOPBAR -->
     <header class="topbar">
-      <div class="topbar-search">
-        <i data-lucide="search"></i>
-        <input type="text" placeholder="Rechercher un document, matière, épreuve...">
-      </div>
+      <button class="topbar-search" id="btn-open-search" style="border:none; cursor:pointer; background:rgba(255,255,255,0.03); outline:none; font-family:var(--font-sans); display:flex; align-items:center; width:300px; padding:8px 16px; border-radius:100px; transition:background 0.2s;">
+        <i data-lucide="search" style="width:16px; height:16px; margin-right:10px; color:var(--text-3);"></i>
+        <span style="color:var(--text-3); font-size:13.5px; flex:1; text-align:left;">Rechercher...</span>
+        <div style="background:var(--bg-secondary); padding:2px 6px; border-radius:4px; font-size:10px; color:var(--text-3); font-family:var(--font-mono); font-weight:600; border:1px solid var(--border); display:flex; gap:4px; opacity:0.8;">
+          <span>⌘</span><span>K</span>
+        </div>
+      </button>
       <div class="topbar-actions">
         <button class="topbar-btn" title="Notifications">
           <i data-lucide="bell"></i>
@@ -179,5 +193,298 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 {% block extra_js %}{% endblock %}
+
+{% if user.is_authenticated %}
+<!-- ============================================================
+     ADVANCED SEARCH MODAL (COMMAND PALETTE)
+     ============================================================ -->
+<div class="search-modal-overlay" id="search-modal">
+  <div class="search-modal-container">
+    <form action="{% url 'documents:liste' %}" method="GET" id="search-modal-form">
+      
+      <!-- HEADER INPUT -->
+      <div class="search-modal-header">
+        <i data-lucide="search" style="color:#64748b; width:20px; height:20px;"></i>
+        <input type="text" name="q" class="search-modal-input" placeholder="Search for courses, documents, or topics..." autocomplete="off" id="search-modal-q">
+        <div class="search-kbd"><span>⌘</span><span>K</span></div>
+      </div>
+
+      <!-- BODY SECTIONS -->
+      <div class="search-modal-body">
+        
+        <!-- Colonne Gauche -->
+        <div>
+          <!-- LEVEL -->
+          <div class="search-filter-section">
+            <span class="search-label">Level</span>
+            <div class="search-pills" id="pills-niveau">
+              <label class="search-pill active" title="Tous">
+                <input type="radio" name="_niveau" value="" checked style="display:none;"> Tous Levels
+              </label>
+              <label class="search-pill" title="Collège">
+                <input type="radio" name="_niveau" value="Collège" style="display:none;"> Collège
+              </label>
+              <label class="search-pill" title="Lycée">
+                <input type="radio" name="_niveau" value="Lycée" style="display:none;"> Lycée
+              </label>
+              <label class="search-pill" title="Université">
+                <input type="radio" name="_niveau" value="Université" style="display:none;"> Université
+              </label>
+            </div>
+          </div>
+
+          <!-- SUBJECT -->
+          <div class="search-filter-section">
+            <span class="search-label">Subject</span>
+            <div class="search-pills" id="pills-matiere">
+              <label class="search-pill active" title="Tous">
+                <input type="radio" name="_matiere" value="" checked style="display:none;"> Tous
+              </label>
+              <label class="search-pill" title="Mathématiques">
+                <input type="radio" name="_matiere" value="Math" style="display:none;"> Math
+              </label>
+              <label class="search-pill" title="Physique">
+                <input type="radio" name="_matiere" value="Physique" style="display:none;"> Physics
+              </label>
+              <label class="search-pill" title="Informatique">
+                <input type="radio" name="_matiere" value="Info" style="display:none;"> Computer Sc.
+              </label>
+              <label class="search-pill" title="Biologie">
+                <input type="radio" name="_matiere" value="Biologie" style="display:none;"> Biology
+              </label>
+            </div>
+          </div>
+
+          <!-- DOCUMENT TYPE -->
+          <div class="search-filter-section">
+            <span class="search-label">Document Type</span>
+            <div class="doc-type-pills">
+              <!-- Type options ('', 'cours', 'epreuve', 'livre') -->
+              <label class="doc-type-pill active">
+                <input type="radio" name="type_doc" value="" checked style="display:none;">
+                <div class="doc-type-radio"></div>
+                <span class="doc-type-text">All Types</span>
+              </label>
+              <label class="doc-type-pill">
+                <input type="radio" name="type_doc" value="cours" style="display:none;">
+                <div class="doc-type-radio"></div>
+                <span class="doc-type-text">PDF Notes</span>
+              </label>
+              <label class="doc-type-pill">
+                <input type="radio" name="type_doc" value="epreuve" style="display:none;">
+                <div class="doc-type-radio"></div>
+                <span class="doc-type-text">Interactive Quizzes</span>
+              </label>
+              <label class="doc-type-pill">
+                <input type="radio" name="type_doc" value="livre" style="display:none;">
+                <div class="doc-type-radio"></div>
+                <span class="doc-type-text">Books / Manuals</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- DATE RANGE -->
+          <div class="search-filter-section" style="margin-bottom:0;">
+            <span class="search-label" style="text-transform:none;">DATE RANGE</span>
+            <div class="date-range-container">
+              <div class="date-input-wrapper">
+                <i data-lucide="calendar" style="width:16px;height:16px;opacity:0.6;"></i>
+                <input type="text" name="annee" placeholder="From Jan 01, 2024" id="search-modal-annee" autocomplete="off">
+              </div>
+              <span style="color:#64748b">—</span>
+              <div class="date-input-wrapper">
+                <i data-lucide="calendar" style="width:16px;height:16px;opacity:0.6;"></i>
+                <input type="text" placeholder="To Present" disabled style="opacity:0.7;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Colonne Droite -->
+        <div>
+          <!-- QUICK FILTERS -->
+          <div class="search-filter-section">
+            <span class="search-label">Quick Filters</span>
+            <div class="quick-filters">
+              <span class="quick-filter active">Verified only</span>
+              <span class="quick-filter">Under 15 mins</span>
+              <span class="quick-filter">Interactive only</span>
+            </div>
+          </div>
+
+          <!-- RECENT SEARCHES -->
+          <div class="recent-searches">
+            <div class="search-label" style="display:flex; justify-content:space-between; margin-bottom:12px;">
+              <span>Recent Searches</span>
+              <button type="button" class="clear-all" style="background:transparent; border:none; padding:0; outline:none;">Clear all</button>
+            </div>
+            <div class="recent-list">
+              <div class="recent-item" data-val="Multivariable Calculus Exam Prep">
+                <i data-lucide="history"></i>
+                <span>Multivariable Calculus Exam Prep</span>
+                <i data-lucide="arrow-up-right" class="arrow"></i>
+              </div>
+              <div class="recent-item" data-val="Machine Learning Ethics PDF">
+                <i data-lucide="history"></i>
+                <span>Machine Learning Ethics PDF</span>
+                <i data-lucide="arrow-up-right" class="arrow"></i>
+              </div>
+              <div class="recent-item" data-val="Organic Chemistry Synthesis">
+                <i data-lucide="history"></i>
+                <span>Organic Chemistry Synthesis</span>
+                <i data-lucide="arrow-up-right" class="arrow"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI PROMO CARD -->
+          <div class="pro-card">
+            <div class="pro-card-header">
+              <i data-lucide="cpu" class="pro-icon" style="color:#3b82f6;"></i>
+              <span class="pro-title">AI Assistant Pro</span>
+            </div>
+            <p class="pro-desc">
+              Try our new Semantic Search. Just describe what you're looking for in plain English and let the AI find the exact resources.
+            </p>
+            <button type="button" class="pro-btn">Enable Pro Search</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- FOOTER -->
+      <div class="search-modal-footer">
+        <span class="filters-applied" id="filters-count">0 filters applied</span>
+        <button type="button" class="btn-search-reset" id="search-modal-reset">Reset</button>
+        <button type="submit" class="btn-search-submit">Show Results</button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<!-- Scripts du Modal -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const modal = document.getElementById('search-modal');
+  const btnOpen = document.getElementById('btn-open-search');
+  if(!modal || !btnOpen) return;
+  
+  const inputQ = document.getElementById('search-modal-q');
+  const form = document.getElementById('search-modal-form');
+  
+  // Ouverture / Fermeture
+  function openModal() {
+    modal.classList.add('active');
+    setTimeout(() => { inputQ.focus(); }, 100);
+  }
+  function closeModal() {
+    modal.classList.remove('active');
+  }
+  
+  btnOpen.addEventListener('click', openModal);
+  modal.addEventListener('click', (e) => {
+    if(e.target === modal) closeModal();
+  });
+  
+  // Raccourci Cmd+K / Ctrl+K
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      openModal();
+    }
+    if (e.key === 'Escape' && modal.classList.contains('active')) {
+      closeModal();
+    }
+  });
+  
+  // Gestion visuelle des boutons "Pills" et Radio
+  const labels = form.querySelectorAll('label.search-pill, label.doc-type-pill');
+  labels.forEach(label => {
+    label.addEventListener('click', function() {
+      // Retirer .active des frères (même name de radio)
+      const input = this.querySelector('input[type="radio"]');
+      if (input) {
+        const name = input.name;
+        form.querySelectorAll(`input[name="${name}"]`).forEach(inp => {
+          inp.closest('label').classList.remove('active');
+        });
+      }
+      this.classList.add('active');
+      updateFiltersCount();
+    });
+  });
+  
+  // Quick Filters
+  document.querySelectorAll('.quick-filter').forEach(pill => {
+    pill.addEventListener('click', function() {
+      this.classList.toggle('active');
+      updateFiltersCount();
+    });
+  });
+  
+  // Clic sur recent searches
+  document.querySelectorAll('.recent-item').forEach(item => {
+    item.addEventListener('click', function() {
+      const val = this.getAttribute('data-val');
+      if (val) {
+        inputQ.value = val;
+        form.submit();
+      }
+    });
+  });
+  
+  // Update du compteur "X filters applied"
+  function updateFiltersCount() {
+    let count = 0;
+    // On compte les radios non-vides qui sont 'active'
+    form.querySelectorAll('label.active input[type="radio"]').forEach(inp => {
+      if (inp.value !== "") count++;
+    });
+    // On compte les quick filters
+    count += document.querySelectorAll('.quick-filter.active').length;
+    
+    document.getElementById('filters-count').textContent = count > 0 ? `${count} filter${count>1?'s':''} applied` : `0 filters applied`;
+  }
+  
+  // Reset
+  document.getElementById('search-modal-reset').addEventListener('click', () => {
+    form.reset();
+    inputQ.value = '';
+    // Reset visual classes
+    labels.forEach(label => label.classList.remove('active'));
+    
+    // Remettre default active
+    ['type_doc', '_niveau', '_matiere'].forEach(name => {
+      const defaultInp = form.querySelector(`input[name="${name}"][value=""]`);
+      if (defaultInp) {
+        defaultInp.checked = true;
+        defaultInp.closest('label').classList.add('active');
+      }
+    });
+    
+    document.querySelectorAll('.quick-filter').forEach(q => q.classList.remove('active'));
+    updateFiltersCount();
+  });
+  
+  // Soumission réelle (on agglomère les textuelles pour 'q' pour la démo sans id base de données)
+  form.addEventListener('submit', (e) => {
+    const niv = form.querySelector('input[name="_niveau"]:checked')?.value || "";
+    const mat = form.querySelector('input[name="_matiere"]:checked')?.value || "";
+    
+    // Pour simplifier côté django, on met les filtres 'niveau' et 'matiere' textuels dans la recherche q
+    let query = inputQ.value.trim();
+    if (niv) query += ` ${niv}`;
+    if (mat) query += ` ${mat}`;
+    inputQ.value = query; // Envoi la requete globale a 'q'
+    
+    // On laisse le formulaire s'envoyer normalement avec 'q' et 'type_doc' (qui eux sont gérés natives)
+  });
+  
+  updateFiltersCount();
+});
+</script>
+{% endif %}
+
 </body>
 </html>

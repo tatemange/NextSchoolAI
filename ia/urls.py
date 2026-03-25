@@ -7,5 +7,5 @@ app_name = 'ia'
 
 urlpatterns = [
     path('document/<int:doc_pk>/resumer/', views.resumer_document, name='resumer'),
-    path('assister/',                      views.assister_ia,      name='assister'),
+    path('document/<int:doc_pk>/chat/',    views.chat_document_ajax, name='chat_ajax'),
 ]

@@ -41,3 +41,18 @@ Si tu veux tester le système d'examen/quiz :
 
 ---
 Une fois ces étapes réalisées (créer 1 ou 2 éléments à chaque fois suffit), tu pourras te déconnecter de l'admin, te rendre sur **http://127.0.0.1:8000/biblio/** (ou la page d'accueil) avec un compte Apprenant, et tu verras les documents s'afficher correctement avec leurs filtres associés !
+
+## 6. Tester les Nouvelles Fonctionnalités d'Intelligence Artificielle (IA)
+Pour tester l'IA intégrée directement sur les documents :
+* Allez sur la page de lecture d'un document validé.
+* Cliquez sur **"Générer le résumé IA"**.
+* Une fois le résumé affiché en Markdown (avec rendu LaTeX pour les formules si présentes), vous verrez la zone de **Chat IA**.
+* Posez une question pointue (ex: "Peux-tu me donner le point 1 ?" ou "Donne-moi un exemple de code Python POO").
+* **Note de développement** : Si la clé API `GEMINI_API_KEY` n'est pas configurée dans votre `.env`, un **Mock de développement (Offline)** très intelligent vous répondra instantanément avec des exemples complets pour valider le design.
+
+## 7. Tester la Recherche Avancée (Command Palette)
+Une nouvelle recherche avancée de type "Command Palette" a été intégrée, offrant un design premium (Thème Noir ou Clair).
+* Sur n'importe quelle page, cliquez sur la barre de recherche en haut ou appuyez sur les touches **`Ctrl + K`** (ou **`Cmd + K`** sur Mac).
+* Le modal plein écran avec effet Blur s'affichera.
+* Testez les "**Pills**" (boutons radio interactifs) pour filtrer par Niveau, Matière ou Type de Document.
+* L'interface simule une "Recherche Sémantique Pro" et conserve vos recherches récentes pour un confort optimal.

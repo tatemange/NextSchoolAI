@@ -16,7 +16,7 @@
   <!-- ===== COLONNE PRINCIPALE ===== -->
   <div style="display:flex;flex-direction:column;gap:20px;">
 
-    <!-- En-tête document -->
+    <!-- En-tête document (compact) -->
     <div class="card">
       <div class="card-body">
         <div style="display:flex;align-items:flex-start;gap:16px;">
@@ -42,9 +42,6 @@
             <i data-lucide="download"></i> Télécharger le PDF
           </a>
           {% if user.is_authenticated %}
-          <a href="{% url 'ia:resumer' document.pk %}" class="btn btn-secondary">
-            <i data-lucide="sparkles"></i> Résumé IA
-          </a>
           <a href="{% url 'quiz:generer' document.pk %}" class="btn btn-secondary">
             <i data-lucide="clipboard-list"></i> Générer QCM
           </a>
@@ -52,6 +49,96 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== ZONE DE CHAT IA — Style Claude AI ===== -->
+    {% if user.is_authenticated %}
+    <div class="chat-zone" id="chat-zone">
+
+      <!-- En-tête du chat -->
+      <div class="chat-zone-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="chat-ai-avatar">
+            <i data-lucide="bot" style="width:18px;height:18px;"></i>
+          </div>
+          <div>
+            <span class="chat-zone-title">Assistant IA</span>
+            <span class="chat-zone-subtitle">NextSchoolAI</span>
+          </div>
+        </div>
+        <div class="chat-zone-actions">
+          <button class="chat-zone-action-btn" id="chat-clear-btn" title="Nouvelle conversation">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pièce jointe — document attaché -->
+      <div class="chat-attachment">
+        <div class="chat-attachment-icon">
+          <i data-lucide="file-text" style="width:16px;height:16px;"></i>
+        </div>
+        <div class="chat-attachment-info">
+          <span class="chat-attachment-name">{{ document.titre|truncatechars:50 }}</span>
+          <span class="chat-attachment-meta">
+            {% if document.matiere %}{{ document.matiere }}{% endif %}
+            {% if document.classe %} · {{ document.classe }}{% endif %}
+            {% if document.poids_fichier %} · {{ document.poids_fichier }} Mo{% endif %}
+          </span>
+        </div>
+        <i data-lucide="check-circle" style="width:14px;height:14px;color:var(--ok);flex-shrink:0;"></i>
+      </div>
+
+      <!-- Messages du chat -->
+      <div class="chat-messages" id="chat-messages">
+
+        <!-- Message d'accueil IA -->
+        <div class="chat-bubble chat-bubble-ai chat-welcome-msg">
+          <div class="chat-bubble-avatar">
+            <i data-lucide="sparkles" style="width:14px;height:14px;"></i>
+          </div>
+          <div class="chat-bubble-content">
+            <div class="chat-bubble-text">
+              <p>Bonjour ! 👋 Je suis votre assistant IA. J'ai accès au contenu complet de <strong>{{ document.titre }}</strong>.</p>
+              <p>Vous pouvez me demander n'importe quoi :</p>
+            </div>
+            <div class="chat-suggestions">
+              <button class="chat-suggestion-btn" data-prompt="Fais-moi un résumé complet de ce cours">
+                <i data-lucide="sparkles" style="width:12px;height:12px;"></i> Résumé complet
+              </button>
+              <button class="chat-suggestion-btn" data-prompt="Explique-moi les concepts clés de ce document">
+                <i data-lucide="lightbulb" style="width:12px;height:12px;"></i> Concepts clés
+              </button>
+              <button class="chat-suggestion-btn" data-prompt="Donne-moi les formules importantes de ce cours">
+                <i data-lucide="square-sigma" style="width:12px;height:12px;"></i> Formules importantes
+              </button>
+              <button class="chat-suggestion-btn" data-prompt="Crée des fiches de révision à partir de ce document">
+                <i data-lucide="notebook-pen" style="width:12px;height:12px;"></i> Fiches de révision
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Barre d'input du chat -->
+      <div class="chat-input-bar">
+        <form id="chat-form" class="chat-input-form">
+          <div class="chat-input-wrapper" id="chat-input-wrapper">
+            <textarea id="chat-input" 
+                      class="chat-input" 
+                      placeholder="Demandez n'importe quoi sur ce cours..." 
+                      rows="1" 
+                      required 
+                      autocomplete="off"></textarea>
+            <button type="submit" class="chat-send-btn" id="chat-send-btn" disabled>
+              <i data-lucide="arrow-up" style="width:16px;height:16px;"></i>
+            </button>
+          </div>
+        </form>
+        <p class="chat-disclaimer">L'IA peut faire des erreurs. Vérifiez les informations importantes.</p>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Notes et évaluations -->
     <div class="card">
@@ -164,9 +251,6 @@
         <a href="{% url 'quiz:generer' document.pk %}" class="btn btn-primary btn-full">
           <i data-lucide="brain-circuit"></i> Générer un QCM IA
         </a>
-        <a href="{% url 'ia:resumer' document.pk %}" class="btn btn-secondary btn-full">
-          <i data-lucide="sparkles"></i> Résumé automatique
-        </a>
         <a href="{% url 'documents:telecharger' document.pk %}" class="btn btn-ghost btn-full">
           <i data-lucide="download"></i> Télécharger
         </a>
@@ -177,4 +261,606 @@
   </div><!-- /sidebar info -->
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if user.is_authenticated %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+
+  // --- Éléments DOM ---
+  const chatForm       = document.getElementById('chat-form');
+  const chatInput      = document.getElementById('chat-input');
+  const chatMessages   = document.getElementById('chat-messages');
+  const chatSendBtn    = document.getElementById('chat-send-btn');
+  const chatWrapper    = document.getElementById('chat-input-wrapper');
+  const chatClearBtn   = document.getElementById('chat-clear-btn');
+
+  // --- Auto-resize du textarea ---
+  chatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+    chatSendBtn.disabled = this.value.trim().length === 0;
+  });
+
+  // --- Focus glow ---
+  chatInput.addEventListener('focus', () => chatWrapper.classList.add('focus'));
+  chatInput.addEventListener('blur', () => chatWrapper.classList.remove('focus'));
+
+  // --- Entrée = Envoyer (Shift+Entrée = nouvelle ligne) ---
+  chatInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (this.value.trim().length > 0) {
+        chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    }
+  });
+
+  // --- Boutons de suggestion ---
+  document.querySelectorAll('.chat-suggestion-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const prompt = this.getAttribute('data-prompt');
+      chatInput.value = prompt;
+      chatInput.dispatchEvent(new Event('input'));
+      chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+    });
+  });
+
+  // --- Nouvelle conversation ---
+  chatClearBtn.addEventListener('click', function() {
+    // Garder le message d'accueil, vider le reste
+    const welcomeMsg = chatMessages.querySelector('.chat-welcome-msg');
+    chatMessages.innerHTML = '';
+    if (welcomeMsg) chatMessages.appendChild(welcomeMsg);
+  });
+
+  // --- Soumission du chat ---
+  chatForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    // 1. Ajouter le message utilisateur
+    appendMessage(message, 'user');
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    chatSendBtn.disabled = true;
+
+    // 2. Indicateur de chargement
+    const loadingEl = appendLoading();
+
+    // 3. Requête AJAX
+    try {
+      const response = await fetch("{% url 'ia:chat_ajax' document.pk %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: new URLSearchParams({ 'message': message })
+      });
+      const data = await response.json();
+
+      loadingEl.remove();
+
+      if (data.succes) {
+        appendMessage(data.reponse, 'ai');
+      } else {
+        appendMessage("Désolé, une erreur est survenue : " + (data.erreur || "Erreur inconnue"), 'ai', true);
+      }
+    } catch (err) {
+      loadingEl.remove();
+      console.error("Chat error:", err);
+      appendMessage("Erreur de connexion au serveur. Veuillez réessayer.", 'ai', true);
+    }
+
+    chatInput.focus();
+  });
+
+  // --- Fonctions utilitaires ---
+  function appendMessage(text, role, isError = false) {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble chat-bubble-${role}`;
+
+    if (role === 'user') {
+      bubble.innerHTML = `
+        <div class="chat-bubble-content">
+          <div class="chat-bubble-text">${escapeHtml(text)}</div>
+        </div>`;
+    } else {
+      const renderedHtml = renderMarkdown(text);
+      bubble.innerHTML = `
+        <div class="chat-bubble-avatar">
+          <i data-lucide="sparkles" style="width:14px;height:14px;"></i>
+        </div>
+        <div class="chat-bubble-content">
+          <div class="chat-bubble-text markdown-body ${isError ? 'chat-error' : ''}">${renderedHtml}</div>
+        </div>`;
+      lucide.createIcons();
+
+      // MathJax pour les formules
+      const textEl = bubble.querySelector('.chat-bubble-text');
+      if (window.MathJax && textEl) {
+        MathJax.typesetPromise([textEl]).catch(err => console.error("MathJax:", err));
+      }
+    }
+
+    // Animation d'apparition
+    bubble.style.opacity = '0';
+    bubble.style.transform = 'translateY(8px)';
+    chatMessages.appendChild(bubble);
+
+    requestAnimationFrame(() => {
+      bubble.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      bubble.style.opacity = '1';
+      bubble.style.transform = 'translateY(0)';
+    });
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function appendLoading() {
+    const loader = document.createElement('div');
+    loader.className = 'chat-bubble chat-bubble-ai chat-loading';
+    loader.innerHTML = `
+      <div class="chat-bubble-avatar">
+        <i data-lucide="sparkles" style="width:14px;height:14px;"></i>
+      </div>
+      <div class="chat-bubble-content">
+        <div class="chat-typing-indicator">
+          <span></span><span></span><span></span>
+        </div>
+      </div>`;
+    chatMessages.appendChild(loader);
+    lucide.createIcons();
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return loader;
+  }
+
+  function renderMarkdown(text) {
+    if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+      return DOMPurify.sanitize(marked.parse(text));
+    }
+    return escapeHtml(text);
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+});
+</script>
+
+<style>
+/* === CHAT ZONE — Claude AI Style === */
+
+.chat-zone {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 500px;
+  max-height: 700px;
+  overflow: hidden;
+}
+
+/* Header */
+.chat-zone-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.chat-ai-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-caramel) 0%, var(--color-coffee) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-brownie);
+  box-shadow: var(--shadow-accent);
+}
+
+.chat-zone-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  display: block;
+  line-height: 1.2;
+}
+
+.chat-zone-subtitle {
+  font-size: 11px;
+  color: var(--text-3);
+  display: block;
+}
+
+.chat-zone-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-zone-action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.chat-zone-action-btn:hover {
+  background: rgba(248,233,192,0.06);
+  color: var(--text-2);
+  border-color: var(--border-hover);
+}
+
+/* Pièce jointe */
+.chat-attachment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 16px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+.chat-attachment:hover {
+  border-color: var(--border-hover);
+}
+
+.chat-attachment-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--err-bg);
+  color: var(--err);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-attachment-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-attachment-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-attachment-meta {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* Messages container */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-behavior: smooth;
+}
+
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 4px; }
+
+/* Bulles de message */
+.chat-bubble {
+  display: flex;
+  gap: 10px;
+  max-width: 90%;
+  animation: chatFadeIn 0.3s ease;
+}
+
+.chat-bubble-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.chat-bubble-ai {
+  align-self: flex-start;
+}
+
+.chat-bubble-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-caramel) 0%, var(--color-coffee) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-brownie);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.chat-bubble-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-bubble-text {
+  font-size: 14px;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+}
+
+.chat-bubble-user .chat-bubble-text {
+  background: linear-gradient(135deg, var(--color-coffee) 0%, var(--color-brownie) 100%);
+  color: var(--color-cream);
+  padding: 10px 16px;
+  border-radius: 18px 18px 4px 18px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.chat-bubble-ai .chat-bubble-text {
+  color: var(--text-1);
+  padding: 2px 0;
+}
+
+.chat-bubble-ai .chat-bubble-text p {
+  margin-bottom: 8px;
+}
+.chat-bubble-ai .chat-bubble-text p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-error {
+  color: var(--err) !important;
+  background: var(--err-bg) !important;
+  padding: 10px 16px !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid rgba(255,69,58,0.3);
+}
+
+/* Suggestions */
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chat-suggestion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+}
+.chat-suggestion-btn:hover {
+  background: var(--accent-light);
+  border-color: var(--border-active);
+  color: var(--color-caramel);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Indicateur de frappe */
+.chat-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+}
+
+.chat-typing-indicator span {
+  width: 7px;
+  height: 7px;
+  background: var(--text-3);
+  border-radius: 50%;
+  animation: chatTyping 1.4s ease-in-out infinite;
+}
+.chat-typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.chat-typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes chatTyping {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes chatFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Input bar */
+.chat-input-bar {
+  padding: 12px 16px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.chat-input-form {
+  margin: 0;
+}
+
+.chat-input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: 22px;
+  padding: 6px 8px 6px 18px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.chat-input-wrapper.focus {
+  border-color: var(--border-active);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-1);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  padding: 6px 0;
+  resize: none;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.chat-input::placeholder {
+  color: var(--text-3);
+}
+.chat-input::-webkit-scrollbar { width: 3px; }
+.chat-input::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+
+.chat-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-caramel) 0%, var(--color-coffee) 100%);
+  color: var(--color-brownie);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.chat-send-btn:hover:not(:disabled) {
+  box-shadow: var(--shadow-accent);
+  transform: scale(1.05);
+}
+.chat-send-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.chat-disclaimer {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 8px;
+  margin-bottom: 0;
+  opacity: 0.7;
+}
+
+/* Markdown body dans le chat */
+.chat-bubble-ai .markdown-body h1,
+.chat-bubble-ai .markdown-body h2,
+.chat-bubble-ai .markdown-body h3 {
+  color: var(--text-1);
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 700;
+}
+.chat-bubble-ai .markdown-body h1 { font-size: 1.15em; }
+.chat-bubble-ai .markdown-body h2 { font-size: 1.08em; }
+.chat-bubble-ai .markdown-body h3 { font-size: 1em; }
+
+.chat-bubble-ai .markdown-body ul,
+.chat-bubble-ai .markdown-body ol {
+  margin-left: 1.4em;
+  margin-bottom: 0.8em;
+}
+.chat-bubble-ai .markdown-body li { margin-bottom: 0.25em; }
+
+.chat-bubble-ai .markdown-body strong {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.chat-bubble-ai .markdown-body code {
+  background: rgba(248,233,192,0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--color-caramel);
+}
+
+.chat-bubble-ai .markdown-body pre {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+.chat-bubble-ai .markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--text-1);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chat-bubble-ai .markdown-body blockquote {
+  border-left: 3px solid var(--color-caramel);
+  padding-left: 14px;
+  color: var(--text-2);
+  font-style: italic;
+  margin: 10px 0;
+}
+
+/* MathJax fix */
+mjx-container svg {
+  max-width: none !important;
+  display: inline-block !important;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .chat-suggestions {
+    flex-direction: column;
+  }
+  .chat-suggestion-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-zone {
+    min-height: 400px;
+  }
+}
+</style>
+{% endif %}
 {% endblock %}

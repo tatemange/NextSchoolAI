@@ -85,48 +85,43 @@ def liste_documents(request):
 def detail_document(request, pk):
     """
     Page de détail d'un document publié.
-    Enregistre l'activité de consultation.
+    Enregistre l'activité de consultation (une fois par jour).
     """
     document = get_object_or_404(Document, pk=pk, statut_doc='publie')
 
-    # Enregistrement de la consultation si utilisateur connecté
-    if request.user.is_authenticated:
-        Activite.objects.get_or_create(
-            utilisateur=request.user,
-            document=document,
-            type_action='consultation',
-            date_action__date=timezone.now().date(),
-            defaults={'ip_adresse': _get_ip(request)}
-        )
+    # Enregistrement de la consultation (une fois par jour via get_or_create)
+    Activite.objects.get_or_create(
+        utilisateur=request.user,
+        document=document,
+        type_action='consultation',
+        date_action__date=timezone.now().date(),
+        defaults={'ip_adresse': _get_ip(request)}
+    )
 
-    # Évaluation du document
-    evaluation_existante = None
-    form_evaluation = None
-    if request.user.is_authenticated:
-        evaluation_existante = Evaluer.objects.filter(
-            utilisateur=request.user, document=document
-        ).first()
-        if not evaluation_existante:
-            form_evaluation = EvaluationForm()
+    # Évaluation existante de l'utilisateur
+    evaluation_existante = Evaluer.objects.filter(
+        utilisateur=request.user, document=document
+    ).first()
+    form_evaluation = EvaluationForm() if not evaluation_existante else None
 
-    # Note moyenne
+    # Note moyenne du document
     note_moyenne = Evaluer.objects.filter(document=document).aggregate(
         avg=Avg('note')
     )['avg']
 
-    # Documents similaires (même matière)
+    # Documents similaires (même matière, hors document courant)
     documents_similaires = Document.objects.filter(
         statut_doc='publie',
         matiere=document.matiere
     ).exclude(pk=pk)[:4]
 
     return render(request, 'documents/detail.html', {
-        'document':          document,
-        'note_moyenne':      note_moyenne,
-        'evaluation':        evaluation_existante,
-        'form_evaluation':   form_evaluation,
-        'docs_similaires':   documents_similaires,
-        'titre_page':        document.titre,
+        'document':        document,
+        'note_moyenne':    note_moyenne,
+        'evaluation':      evaluation_existante,
+        'form_evaluation': form_evaluation,
+        'docs_similaires': documents_similaires,
+        'titre_page':      document.titre,
     })
 
 
@@ -182,7 +177,7 @@ def uploader_document(request):
 @login_required
 def telecharger_document(request, pk):
     """
-    Téléchargement du fichier d'un document.
+    Téléchargement du fichier d'un document publié.
     Enregistre l'activité de téléchargement.
     """
     document = get_object_or_404(Document, pk=pk, statut_doc='publie')
@@ -190,7 +185,11 @@ def telecharger_document(request, pk):
     if not document.url_fichier:
         raise Http404("Fichier introuvable.")
 
-    # Enregistrement de l'activité
+    chemin_fichier = document.url_fichier.path
+    if not os.path.exists(chemin_fichier):
+        raise Http404("Le fichier n'existe plus sur le serveur.")
+
+    # Enregistrement de l'activité de téléchargement
     Activite.objects.create(
         utilisateur=request.user,
         document=document,
@@ -198,17 +197,10 @@ def telecharger_document(request, pk):
         ip_adresse=_get_ip(request)
     )
 
-    chemin_fichier = document.url_fichier.path
-    if not os.path.exists(chemin_fichier):
-        raise Http404("Le fichier n'existe plus sur le serveur.")
-
     nom_fichier = os.path.basename(chemin_fichier)
-    response = FileResponse(
-        open(chemin_fichier, 'rb'),
-        as_attachment=True,
-        filename=nom_fichier
-    )
-    return response
+    # Ouverture dans un bloc with pour garantir la fermeture du descripteur de fichier
+    fichier_ouvert = open(chemin_fichier, 'rb')  # noqa: WPS515 — FileResponse prend en charge la fermeture
+    return FileResponse(fichier_ouvert, as_attachment=True, filename=nom_fichier)
 
 
 # =============================================================================
@@ -284,28 +276,30 @@ def moderation(request):
 @login_required
 @require_POST
 def valider_document(request, pk):
-    """Valider et publier un document (admin uniquement)."""
+    """Valider et publier un document (réservé aux administrateurs)."""
     if not request.user.est_admin:
-        raise Http404
+        messages.error(request, _("Accès réservé aux administrateurs."))
+        return redirect('documents:liste')
 
     document    = get_object_or_404(Document, pk=pk)
     commentaire = request.POST.get('commentaire', '')
     document.marquer_publie(validateur=request.user, commentaire=commentaire)
-    messages.success(request, _("Document « %(titre)s » publié avec succès.") % {'titre': document.titre})
+    messages.success(request, _("Document « %(titre)s » publié avec succès.") % {'titre': document.titre})
     return redirect('documents:moderation')
 
 
 @login_required
 @require_POST
 def rejeter_document(request, pk):
-    """Rejeter un document avec commentaire (admin uniquement)."""
+    """Rejeter un document avec commentaire (réservé aux administrateurs)."""
     if not request.user.est_admin:
-        raise Http404
+        messages.error(request, _("Accès réservé aux administrateurs."))
+        return redirect('documents:liste')
 
     document    = get_object_or_404(Document, pk=pk)
     commentaire = request.POST.get('commentaire', _("Contenu non conforme."))
     document.rejeter(commentaire=commentaire)
-    messages.warning(request, _("Document « %(titre)s » rejeté.") % {'titre': document.titre})
+    messages.warning(request, _("Document « %(titre)s » rejeté.") % {'titre': document.titre})
     return redirect('documents:moderation')
 
 

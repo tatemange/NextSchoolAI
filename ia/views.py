@@ -11,7 +11,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
 from documents.models import Document, Activite
-from ia.services import IAService, extraire_texte
+from ia.services import IAService, extraire_texte, LIMITE_PROMPT_HF_CHARS
 from ia.models import InteractionIA
 
 
@@ -76,43 +76,40 @@ def resumer_document(request, doc_pk):
 
 @login_required
 @require_POST
-def assister_ia(request):
+def chat_document_ajax(request, doc_pk):
     """
-    Endpoint AJAX pour l'assistant IA (questions libres).
-    Retourne une réponse JSON.
+    Endpoint AJAX exclusif pour le chat sur un document (depuis résumé/qcm).
     """
-    question = request.POST.get('question', '').strip()
-    doc_pk   = request.POST.get('document_pk')
-
-    if not question:
-        return JsonResponse({'succes': False, 'erreur': 'Question vide.'})
-
-    contexte = ""
-    document = None
-    if doc_pk:
-        try:
-            document = Document.objects.get(pk=doc_pk, statut_doc='publie')
-            chemin   = document.url_fichier.path
-            contexte = extraire_texte(chemin)[:3000]
-        except Document.DoesNotExist:
-            pass
-
-    resultat = IAService.generer_explication(question, contexte=contexte)
-
+    message = request.POST.get('message', '').strip()
+    
+    if not message:
+        return JsonResponse({'succes': False, 'erreur': 'Message vide.'})
+        
+    document = get_object_or_404(Document, pk=doc_pk, statut_doc='publie')
+    
+    # Extraction d'un large contexte pour l'IA (les LLMs actuels comme Gemini ont de très grandes fenêtres de contexte)
+    chemin = document.url_fichier.path
+    contexte_brut = extraire_texte(chemin)
+    contexte = contexte_brut[:LIMITE_PROMPT_HF_CHARS] if contexte_brut else ""
+    
+    # Appel du service
+    resultat = IAService.generer_explication(message, contexte=contexte)
+    
+    # Enregistrer l'interaction dans l'historique
     InteractionIA.objects.create(
         utilisateur=request.user,
         document=document,
         type_interaction='explication',
         moteur_ia=resultat.get('moteur', 'gemini'),
-        prompt_utilisateur=question,
+        prompt_utilisateur=message,
         contenu_genere=resultat.get('contenu', ''),
         duree_secondes=int(resultat.get('duree', 0)),
         succes=resultat['succes'],
-        message_erreur=resultat.get('erreur', ''),
+        message_erreur=resultat.get('erreur', '')
     )
-
+    
     return JsonResponse({
-        'succes':  resultat['succes'],
-        'contenu': resultat.get('contenu', ''),
-        'erreur':  resultat.get('erreur', ''),
+        'succes': resultat['succes'],
+        'reponse': resultat.get('contenu', ''),
+        'erreur': resultat.get('erreur', '')
     })

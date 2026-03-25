@@ -1,0 +1,24 @@
+# Environnement Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.env
+venv/
+env/
+ENV/
+
+# Sauvegardes de sécurité
+token_backup.txt
+
+# Base de données
+db.sqlite3
+*.sqlite3
+
+# Fichiers statiques et médias
+staticfiles/
+media/
+
+# VS Code / IDE
+.vscode/
+.idea/
